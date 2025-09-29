@@ -1,0 +1,46 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: fin-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"   
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: fin_tool
+
+  api:
+    build: ./api
+    container_name: fin-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: fin_tool
+      API_PORT: 3000
+    depends_on:
+      - mongo
+
+  frontend:
+    build: ./frontend
+    container_name: fin-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+
+    depends_on:
+      - api
+
+  nginx:
+    build: ./nginx
+    container_name: fin-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+      - frontend
+
+volumes:
+  mongo_data:

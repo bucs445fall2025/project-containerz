@@ -1,0 +1,16 @@
+{
+	"name": "fin-tool-api",
+	"private": true,
+	"type": "module",
+	"scripts": {
+	  "dev": "node --watch src/index.js",
+	  "start": "node src/index.js"
+	},
+	"dependencies": {
+	  "express": "^4.19.2",
+	  "cors": "^2.8.5",
+	  "dotenv": "^16.4.5",
+	  "mongodb": "^6.8.0"
+	}
+  }
+  
