@@ -1,14 +1,27 @@
 ## **Backend**
-- **Python (Alpine)** → [python:3.12-alpine](https://hub.docker.com/_/python)
+- **Node.js (Alpine) + Express** → [node:20-alpine](https://hub.docker.com/_/node)
+- API server: `express` with `cors`, `dotenv`, `mongodb` driver
+- Internal port: `3000`
 
 ## **Web Server**
-- **Nginx** → [nginx:latest](https://hub.docker.com/_/nginx)
+- **Nginx** → [nginx:1.27-alpine](https://hub.docker.com/_/nginx)
+- Acts as reverse proxy:
+  - `/` → `frontend:5173` (Vite dev server)
+  - `/api/` → `api:3000`
 
 ## **Database**
-- **PostgreSQL** → [postgres:15](https://hub.docker.com/_/postgres)
+- **MongoDB 7** → [mongo:7](https://hub.docker.com/_/mongo)
+- Built from `database/` (Dockerfile based on `mongo:latest`) with init scripts in `/docker-entrypoint-initdb.d`
+- Data persisted via named volume `mongo_data` → `/data/db`
 
-## **Cache**
-- **Redis** → [redis:latest](https://hub.docker.com/_/redis)
+## **Frontend**
+- **React 18 + Vite 5**
+- Dev server internal port: `5173`
+- Nginx fronted at host `http://localhost:8080`
 
 ## **Additional Dependencies**
-- Any other dependencies can be listed here, such as Celery, Node.js, or worker services.
+- `express`, `cors`, `dotenv`, `mongodb`, `react`, `react-dom`, `vite`, `@vitejs/plugin-react`
+
+## **Container Orchestration**
+- **Docker** images per service; orchestrated with **Docker Compose** (`compose.yml`)
+- Service names: `mongo`, `api`, `frontend`, `nginx`

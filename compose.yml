@@ -1,5 +1,6 @@
 services:
   mongo:
+    build: ./database
     image: mongo:7
     container_name: fin-mongo
     restart: unless-stopped
@@ -7,6 +8,7 @@ services:
       - "27017:27017"   
     volumes:
       - mongo_data:/data/db
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     environment:
       MONGO_INITDB_DATABASE: fin_tool
 
@@ -28,7 +30,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-
+      VITE_API_BASE_URL: http://localhost:8080/api
     depends_on:
       - api
 
