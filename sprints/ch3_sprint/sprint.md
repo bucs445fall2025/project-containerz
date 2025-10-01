@@ -83,17 +83,17 @@ Samuel Montes
 Fernando Oliveira
 
 ## **Team Roles:**
-[Define roles for each team member, such as developer, designer, project manager, QA tester, etc.]
 Samuel Montes: frontend/database/server/testing
-Fernando Oliveira:
+Fernando Oliveira: backend/server/api/ml-models/testing
 
 ## **Team Norms:**
-[Establish how the team will communicate, how often meetings will happen, and any other ground rules for collaboration.]
 Weekly communication through class time and discord
+Update team member whenever changes are made
 
 ## **Application Stack:**
-[List all the technologies being used in the project, including programming languages, frameworks, and tools.]
-
+Front end: React
+Back end: Node.js, Nginx, MongoDB
 
 ### **Libraries/Frameworks:**
-[List any specific libraries or frameworks your application will use, such as React, Flask, Django, etc.]
+React, tailwindCSS, Express.js, mongoose, bycrypt, pytorch
+
