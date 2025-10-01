@@ -12,8 +12,8 @@ services:
     environment:
       MONGO_INITDB_DATABASE: fin_tool
 
-  api:
-    build: ./api
+  backend:
+    build: ./backend
     container_name: fin-api
     restart: unless-stopped
     environment:
@@ -41,7 +41,7 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      - api
+      - backend
       - frontend
 
 volumes:
