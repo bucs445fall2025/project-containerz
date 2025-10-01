@@ -32,7 +32,7 @@ services:
       NODE_ENV: development
       VITE_API_BASE_URL: http://localhost:8080/api
     depends_on:
-      - api
+      - backend
 
   nginx:
     build: ./nginx
