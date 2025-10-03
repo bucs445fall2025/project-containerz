@@ -1,36 +1,28 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import { MongoClient } from "mongodb";
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+
+import { connectDB } from './config/db.js';
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(cors({
+  	origin: 'http://localhost:5173',
+	credentials: true, 
+}));
 
-const mongoUri = process.env.MONGO_URI || "mongodb://mongo:27017";
-const dbName = process.env.MONGO_DB || "fin_tool";
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-let db;
-(async () => {
-  const client = new MongoClient(mongoUri);
-  await client.connect();
-  db = client.db(dbName);
-  console.log(`API connected to MongoDB database: ${dbName}`);
-})().catch(err => {
-  console.error("Mongo connect error:", err);
-  process.exit(1);
+const PORT = process.env.PORT || 3000;
+
+connectDB().then(() => {
+	app.listen(PORT, () => {
+		console.log('Server started on PORT:', PORT);
+	});
 });
-
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "api" });
-});
-
-app.get("/api/accounts", async (_req, res) => {
-  const items = await db.collection("accounts").find({}).limit(10).toArray();
-  res.json(items);
-});
-
-const port = process.env.API_PORT || 3000;
-app.listen(port, () => console.log(`API listening on :${port}`));
