@@ -1,28 +1,38 @@
 services:
   mongo:
-    build: ./database
     image: mongo:7
     container_name: fin-mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"   
+      - "27017:27017"
     volumes:
       - mongo_data:/data/db
       - ./database/init:/docker-entrypoint-initdb.d:ro
     environment:
       MONGO_INITDB_DATABASE: fin_tool
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   backend:
     build: ./backend
-    container_name: fin-api
+    # container_name: backend
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      MONGO_URI: mongodb://mongo:27017
-      MONGO_DB: fin_tool
-      API_PORT: 3000
+      # Prefer a single URI that includes the DB name:
+      MONGODB_URI: mongodb://mongo:27017/fin_tool
+      PORT: "3000"         # <-- scalar value, not a list
+    ports:
+      - "8080:3000"        # host:container → API at http://localhost:8080
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules 
 
   frontend:
     build: ./frontend
@@ -31,18 +41,21 @@ services:
     environment:
       NODE_ENV: development
       VITE_API_BASE_URL: http://localhost:8080/api
+    # If using a Vite dev server in the container:
+    ports:
+      - "5173:5173"        # app at http://localhost:5173
     depends_on:
       - backend
 
-  nginx:
-    build: ./nginx
-    container_name: fin-nginx
-    restart: unless-stopped
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
-      - frontend
+  # nginx:
+  #   build: ./nginx
+  #   container_name: fin-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:80"
+  #   depends_on:
+  #     - backend
+  #     - frontend
 
 volumes:
   mongo_data:
