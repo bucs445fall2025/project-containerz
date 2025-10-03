@@ -1,7 +1,7 @@
 # **Project Overview**
 
 ## **Application Vision/Goal:**
-The purpose of our project is to simplify personal finance management. Today, people juggle multiple accounts - credit cards, savings, mortgages, and more - making it difficult to get a clear picture of their finances. Our app brings all of these accounts together in one place, helping users track spending habits and make smarter financial decisions. Beyond simple tracking, the app provides insights and comparisons - for instance, showing how a $7 dollar coffee could instead grow if invested in the stock market with a company like NVIDIA. Our target audience is young adults who want to gain a finanical endge, build healthy money habits early, and be encourages to invest while they are still young. 
+The purpose of our project is to simplify personal finance management. Today, people juggle multiple accounts - credit cards, savings, mortgages, and more - making it difficult to get a clear picture of their finances. Our app brings all of these accounts together in one place, helping users track spending habits and make smarter financial decisions. Beyond simple tracking, the app provides insights and comparisons - for instance, showing how a $7 dollar coffee could instead grow if invested in the stock market with a company like NVIDIA. Our target audience is young adults who want to gain a financial edge, build healthy money habits early, and be encouraged to invest while they are still young. 
 
 ## **Scope:**
 Dashboard displaying all connected user accounts
