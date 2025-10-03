@@ -1,15 +1,11 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
-export async function connectDB(
-	uri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://mongo:27017/fin_tool'
-){
-	try {
-    	mongoose.set('strictQuery', true);
-    	await mongoose.connect(uri);
-    	console.log(`MongoDB connected: ${mongoose.connection.name}`);
-    	return mongoose.connection;
-	} catch (err) {
-    	console.error('Error connecting to MongoDB:', err.message);
-    	process.exit(1);
-  	}
+exports.connectDB = async () => {
+    try {
+        await mongoose.connect(process.env.MONGO_URI);
+        console.log("MONGODB CONNECTED!");
+    } catch (error) {
+        console.log("Error connecting to MongoDB", error);
+        process.exit(1);
+    }
 }
