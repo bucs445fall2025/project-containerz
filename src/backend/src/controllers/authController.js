@@ -1,7 +1,7 @@
 const User = require('../models/User.js');
 const jwt = require('jsonwebtoken');
 
-const { signupSchema, signinSchema } = require('../middlewares/validator.js'); 
+const { signupSchema, signinSchema } = require('../middlewares/validation.js'); 
 const { doHash, doHashValidation } = require('../utils/hashing.js');
 
 exports.signup = async (req,res) => {
