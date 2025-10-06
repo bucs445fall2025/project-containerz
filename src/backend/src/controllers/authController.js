@@ -100,7 +100,7 @@ exports.signin = async (req,res) => {
                 expiresIn: '8h'
             }
         );
-
+        // console.log(existingUser.verified);
         const safeUser = {
             id: String(existingUser._id),
             name: existingUser.name,
@@ -222,6 +222,36 @@ exports.verifyVerificationCode = async (req,res) => {
             return res.status(200).json({ success: true, message: "Your account has been verified" });
         }
         return res.status(400).json({ success: false, message: "unexpected occured"})
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+exports.changePassword = async (req,res) => {
+    const userId  = req.user?.id;
+    const { oldPassword, newPassword } = req.body;
+    try {
+        console.log("got id from req.user:", userId);
+        const existingUser = await User.findOne({ _id: userId}).select('+password +verified');
+        if (!existingUser) {
+            return res.status(404).json({ success: false, message: "User does not exist"});
+        }
+        if (!existingUser.verified) {
+            return res.status(401).json({ success:false, message: "You are not a verified user" });
+        }  
+        const { error, value } = changePasswordSchema.validate({ oldPassword, newPassword });
+        if (error) {
+            return res.status(401).json({ success:false, message: error.details[0].message });
+        } 
+    
+        const result = await doHashValidation(oldPassword, existingUser.password);
+        if (!result) {
+            return res.status(401).json({ success: false, message: "Invalid credentials"});
+        }
+        const hashedPassword = await doHash(newPassword, 12);
+        existingUser.password = hashedPassword;
+        await existingUser.save({ validateBeforeSave: false });
+        return res.status(200).json({ success:true, message: "password updated" });
     } catch (error) {
         console.log(error);
     }
