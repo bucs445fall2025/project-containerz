@@ -1,8 +1,9 @@
 const User = require('../models/User.js');
 const jwt = require('jsonwebtoken');
 
-const { signupSchema, signinSchema } = require('../middlewares/validation.js'); 
-const { doHash, doHashValidation } = require('../utils/hashing.js');
+const { signupSchema, signinSchema, acceptCodeSchema, changePasswordSchema, acceptFPCodeSchema} = require('../middlewares/validation.js'); 
+const { doHash, doHashValidation, hmacProcess } = require('../utils/hashing.js');
+const transport = require('../middlewares/sendMail');
 
 exports.signup = async (req,res) => {
     try {
@@ -32,7 +33,8 @@ exports.signup = async (req,res) => {
         const result = await newUser.save();
         const token = jwt.sign({
                 userId: result._id,
-                email: result.email
+                email: result.email,
+                verified: result.verified
             },process.env.TOKEN_SECRET,
             {
                 expiresIn: '8h'
@@ -91,7 +93,8 @@ exports.signin = async (req,res) => {
         }
         const token = jwt.sign({
                 userId: existingUser._id,
-                email: existingUser.email
+                email: existingUser.email,
+                verified: existingUser.verified
             },process.env.TOKEN_SECRET,
             {
                 expiresIn: '8h'
@@ -101,7 +104,8 @@ exports.signin = async (req,res) => {
         const safeUser = {
             id: String(existingUser._id),
             name: existingUser.name,
-            email: existingUser.email
+            email: existingUser.email,
+            verified: existingUser.verified,
         };
 
         res.cookie('Authorization', 'Bearer ' + token, { 
@@ -147,3 +151,78 @@ exports.me = async (req, res) => {
         });
     }
 }
+
+exports.sendVerificationCode = async (req,res) => {
+    const { email } = req.body;
+    try {
+        const existingUser = await User.findOne({ email })
+        if (!existingUser) {
+            return res.status(404).json({ success: false, message: "User doesn't exist!" });
+        }
+        if (existingUser.verified) {
+            return res.status(400).json({ success: false, message: "Already Verified!" });
+        }
+
+        const codeValue = Math.floor(Math.random() * 1000000).toString().padStart(6, '0'); // pad ensures it is 6 digits;
+        let info = await transport.sendMail({
+            from: process.env.NODE_CODE_EMAIL_ADDRESS,
+            to: existingUser.email,
+            subject: "Verification Code",
+            html: '<h1>' + codeValue + '<h1>'
+        });
+
+        if (info.accepted[0] === existingUser.email) {
+            const hashedCodeValue = hmacProcess(codeValue, process.env.HMAC_VERIFICATION_CODE_SECRET)
+            existingUser.verificationCode = hashedCodeValue;
+            existingUser.verificationCodeValidation = Date.now();
+            await existingUser.save({ validateBeforeSave: false });
+            // console.log(existingUser.verificationCode);
+            // console.log(existingUser.verificationCodeValidation);
+            return res.status(200).json({ success: true, message: "Code sent!"});
+        }
+        return res.status(400).json({ success: false, message: "Code did not send!"}) // if email not accepted
+
+    } catch (error) {
+        console.log(error);
+    }
+};
+
+exports.verifyVerificationCode = async (req,res) => {
+    const { email, providedCode } = req.body;
+    try {
+        const { error, value } = acceptCodeSchema.validate({ email, providedCode });
+        if (error) {
+            return res.status(401).json({ success:false, message: error.details[0].message });
+        } 
+        const codeValue = providedCode.toString();
+        const existingUser = await User.findOne({ email }).select("+verificationCode +verificationCodeValidation"); // needs spaave between plus
+        if (!existingUser) {
+            return res.status(404).json({ success: false, message: "User does not exist"});
+        }
+
+        if (existingUser.verified) {
+            return res.status(400).json({ success: false, message: "You are already verified" });
+        }
+        // console.log(existingUser.verificationCode);
+        // console.log(existingUser.verificationCodeValidation);
+
+        if (!existingUser.verificationCode || !existingUser.verificationCodeValidation) {
+            return res.status(400).json({ success: false, message: "Something is wrong with the code!" })
+        }
+        if (Date.now() - existingUser.verificationCodeValidation > 15 * 60 * 1000){
+            return res.status(400).json({ success: false, message: "code has been expired!"});
+        }
+
+        const hashedCodeValue = hmacProcess(codeValue, process.env.HMAC_VERIFICATION_CODE_SECRET);
+        if (hashedCodeValue === existingUser.verificationCode) {
+            existingUser.verified = true;
+            existingUser.verificationCode = undefined;
+            existingUser.verificationCodeValidation = undefined;
+            await existingUser.save({ validateBeforeSave: false });
+            return res.status(200).json({ success: true, message: "Your account has been verified" });
+        }
+        return res.status(400).json({ success: false, message: "unexpected occured"})
+    } catch (error) {
+        console.log(error);
+    }
+};
