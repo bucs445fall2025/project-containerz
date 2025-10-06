@@ -9,4 +9,8 @@ router.post('/signin', authController.signin);
 router.get('/me', identifier, authController.me);
 router.post('/signout', identifier, authController.signout);
 
+router.patch('/send-verification-code', identifier, authController.sendVerificationCode);
+router.patch('/verify-verification-code', identifier, authController.verifyVerificationCode);
+
+
 module.exports = router;
