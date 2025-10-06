@@ -5,6 +5,7 @@ const cookieParser = require('cookie-parser');
 
 const { connectDB } = require('./config/db');
 const authRoute = require('./routes/authRoute.js');
+const plaidRoute = require('./routes/plaidRoute.js');
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(cors({
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRoute);
+app.use('/api/plaid', plaidRoute);
 
 const PORT = process.env.PORT || 3000;
 
