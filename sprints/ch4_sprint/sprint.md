@@ -1,10 +1,8 @@
 # Sprint Meeting Notes
 
-*note: replace anything surrounded by << >> and **remove** the << >>*
+**Attended**: Sam & Fernando
 
-**Attended**: << record the team members in attendance (virtual counts as long as they are participating) >>
-
-**DATE**: << meeting date >>
+**DATE**: 10/6/2025
 
 ***
 
@@ -12,27 +10,31 @@
 
 ### SRS Sections Updated
 
-<< List any SRS sections that were updated in the last sprint >>
+* Software Requirement specification
+* Requirements
 
 ### User Story
 
-<< Corresponding User Stories completed in this sprint >>
+* View banking information from multiple accounts
 
 ### Sprint Requirements Attempted
 
-<< The corresponding SRS requirement that the team completed in the last sprint >>
+* Plaid Integration for account retrieval
+* Display data retrieved from plaid api
+
 
 ### Completed Requirements
 
-<< The work that's been completed in this sprint >>
+* Plaid Integration for account retrieval
+* Display data retrieved from plaid api
 
 ### Incomplete Requirements
 
-<< The work that has not been completed in this sprint. Be VERY detailed and specific regarding what isn't working and what needs to be completed >>
+* n/a
 
 ### The summary of the entire project
 
-<< A general overview of the entire project >>
+User can create an account and login to view all their connected bank accounts. The user has the ability to refresh to see their most updated balances, and can connect different accounts. 
 
 ***
 
@@ -40,32 +42,38 @@
 
 ## Requirements Flex
 
-<< # >>/3 requirement flexes remaining
+3/3 requirement flexes remaining
 
 ## Technical Debt
 
-<< Any requirements from the previous sprint that are using a technical flex >>
+* n/a
 
 ### Requirement Target
 
-<< The corresponding SRS requirement that our team will be complete in next sprint >>
+* User verification
+* Plaid transaction
+* Display plaid transactions
 
 ### User Stories
 
-<< Corresponding User Stories >>
+* Security
+* Viewing banking information from multiple accounts
 
 ### Planning
 
-<< Our team's detailed plan to complete the sprint >>
+Fernando will set up and test account verification and transactions. Sam will create verifications screens and ensure user can only access plaid add account button if account is verified, as well as incorperating account transactions to 
 
 ### Action Items
 
-<< A list of things that need to happen in our for our team to complete the sprint >>
+* Successful integration of auth handling
+* UI displaying account transaction information
+* Successful retrieval of account transaction data
 
 ### Issues and Risks
 
-<< A list of potential obstacles that could keep us from completing the sprint and what's being done about them >>
+* Figuring out how to prevent users from accessing plaid without being verified  
 
 ### Team Work Assignments
 
-<< A list of each team member and their works assignments for this sprint >>
+* Sam: display financial transactions, prevent viewing of plaid unless user is verified
+* Fernando: auth handling, and plaid transaction integration
