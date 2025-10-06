@@ -22,11 +22,11 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      # Prefer a single URI that includes the DB name:
       MONGODB_URI: mongodb://mongo:27017/fin_tool
-      PORT: "3000"         # <-- scalar value, not a list
+      PORT: "3000"         #
+      TOKEN_SECRET: dev-secret-key
     ports:
-      - "8080:3000"        # host:container → API at http://localhost:8080
+      - "8081:3000"        
     depends_on:
       mongo:
         condition: service_healthy
@@ -41,21 +41,20 @@ services:
     environment:
       NODE_ENV: development
       VITE_API_BASE_URL: http://localhost:8080/api
-    # If using a Vite dev server in the container:
     ports:
-      - "5173:5173"        # app at http://localhost:5173
+      - "5173:5173"        
     depends_on:
       - backend
 
-  # nginx:
-  #   build: ./nginx
-  #   container_name: fin-nginx
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8080:80"
-  #   depends_on:
-  #     - backend
-  #     - frontend
+  nginx:
+    build: ./nginx
+    container_name: fin-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"         
+    depends_on:
+      - backend
+      - frontend
 
 volumes:
   mongo_data:

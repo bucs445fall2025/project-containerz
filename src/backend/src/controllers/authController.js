@@ -13,7 +13,7 @@ exports.signup = async (req,res) => {
                 message: error.details[0].message 
             });
         }
-        const { email, password } = value;
+        const { name, email, password } = value;
 
         const existingUser = await User.findOne({ email });
         if (existingUser) {
@@ -24,16 +24,36 @@ exports.signup = async (req,res) => {
         }
         const hashedPassword = await doHash(password, 12);
         const newUser = new User({
+            name,
             email,
             password: hashedPassword
-        })
+        });
 
         const result = await newUser.save();
-        const { password: _pw, ...safeUser } = result.toObject();
-        res.status(201).json({
+        const token = jwt.sign({
+                userId: result._id,
+                email: result.email
+            },process.env.TOKEN_SECRET,
+            {
+                expiresIn: '8h'
+            }
+        );
+
+        const safeUser = {
+            id: String(result._id),
+            name: result.name,
+            email: result.email
+        };
+
+        res.cookie('Authorization', 'Bearer ' + token, {
+            expires: new Date(Date.now() + 8 * 3600000),
+            httpOnly: process.env.NODE_ENV === 'production',
+            secure: process.env.NODE_ENV === 'production'
+        }).status(201).json({
             success: true,
             message: "Your account has been successfully created!",
-            result: safeUser
+            token,
+            user: safeUser
         });
     } catch (error) {
         res.status(500).json({
@@ -77,12 +97,20 @@ exports.signin = async (req,res) => {
                 expiresIn: '8h'
             }
         );
+
+        const safeUser = {
+            id: String(existingUser._id),
+            name: existingUser.name,
+            email: existingUser.email
+        };
+
         res.cookie('Authorization', 'Bearer ' + token, { 
             expires: new Date(Date.now() + 8 * 3600000), 
             httpOnly: process.env.NODE_ENV === 'production', 
             secure: process.env.NODE_ENV === 'production'}).json({ 
                 success: true, 
-                token, 
+                token,
+                user: safeUser,
                 message: "Log in successful"});
     } catch (error) {
         res.status(500).json({
@@ -93,4 +121,29 @@ exports.signin = async (req,res) => {
 
 exports.signout = async (req,res) => {
     res.clearCookie('Authorization').status(200).json({ success:true, message: "Logged out successfully" });
+}
+
+exports.me = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        return res.json({
+            success: true,
+            user: {
+                id: String(user._id),
+                name: user.name,
+                email: user.email
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: error.message
+        });
+    }
 }
