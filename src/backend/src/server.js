@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
@@ -10,6 +11,7 @@ const plaidRoute = require('./routes/plaidRoute.js');
 const app = express();
 
 app.use(express.json());
+app.use(helmet());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
