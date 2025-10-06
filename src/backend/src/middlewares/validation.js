@@ -1,6 +1,7 @@
 const Joi = require('joi');
 
 exports.signupSchema = Joi.object({
+    name: Joi.string().min(2).max(60).required(),
     email: Joi.string().min(6).max(60).required().email({
         tlds: {
             allowed: ['com', 'net', 'edu']

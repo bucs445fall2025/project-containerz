@@ -9,6 +9,7 @@ RUN \
   else npm i; fi
 
 COPY index.html ./
+COPY vite.config.js ./
 COPY src ./src
 
 
