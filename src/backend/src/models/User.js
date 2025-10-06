@@ -40,6 +40,14 @@ const UserSchema = mongoose.Schema({
     forgotPasswordCodeValidation: {
         type: Number,
         select: false
+    },
+    plaidAccessToken: {
+        type: String,
+        select: false
+    },
+    plaidItemId: {
+        type: String,
+        select: false
     }
 },{
     timestamps: true
