@@ -58,7 +58,7 @@ exports.signup = async (req,res) => {
             user: safeUser
         });
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             message: error.message
         });
     }
@@ -117,7 +117,7 @@ exports.signin = async (req,res) => {
                 user: safeUser,
                 message: "Log in successful"});
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             message: error.message
         });
     }
@@ -146,7 +146,7 @@ exports.me = async (req, res) => {
             }
         });
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             message: error.message
         });
     }
@@ -184,6 +184,9 @@ exports.sendVerificationCode = async (req,res) => {
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: error.message
+        });
     }
 };
 
@@ -224,6 +227,9 @@ exports.verifyVerificationCode = async (req,res) => {
         return res.status(400).json({ success: false, message: "unexpected occured"})
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: error.message
+        });
     }
 };
 
@@ -254,6 +260,9 @@ exports.changePassword = async (req,res) => {
         return res.status(200).json({ success:true, message: "password updated" });
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: error.message
+        });
     }
 };
 
@@ -284,6 +293,9 @@ exports.sendForgotPasswordCode = async (req,res) => {
 
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: error.message
+        });
     }
 };
 
@@ -319,5 +331,8 @@ exports.verifyForgotPasswordCode = async (req,res) => {
         return res.status(400).json({ success: false, message: "unexpected occured"})
     } catch (error) {
         console.log(error);
+        return res.status(500).json({
+            message: error.message
+        });
     }
 };
