@@ -122,3 +122,66 @@ exports.getAccounts = async (req, res) => {
     });
   }
 };
+
+exports.getTransactions = async (req, res) => {
+	try {
+    const user = await User.findById(req.user.id).select('+plaidAccessToken +plaidItemId +plaidCursor');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (!user.plaidAccessToken) {
+      return res.json({ success: true, item_id: user.plaidItemId, transactions: [] });
+    }
+
+    // Iterate /transactions/sync
+    let cursor = user.plaidCursor || null; // null means "give me full history"
+    let added = [];
+    let modified = [];
+    let removed = [];
+    let hasMore = true;
+
+    while (hasMore) {
+      const syncResp = await plaidClient.transactionsSync({
+        access_token: user.plaidAccessToken,
+        cursor,
+      });
+
+      const data = syncResp.data;
+      added.push(...data.added);
+      modified.push(...data.modified);
+      removed.push(...data.removed);
+      hasMore = data.has_more;
+      cursor = data.next_cursor;
+    }
+
+    // Persist the new cursor so next call only fetches deltas
+    if (cursor !== user.plaidCursor) {
+      user.plaidCursor = cursor;
+      await user.save();
+    }
+
+    const compareAsc = (a, b) => (a.date > b.date) - (a.date < b.date);
+    const recent = [...added, ...modified].sort(compareAsc).slice(-25).reverse(); // newest first
+
+    return res.json({
+      success: true,
+      item_id: user.plaidItemId,
+      latest_transactions: recent,
+      removed,
+    });
+
+  } catch (error) {
+    console.error('Plaid get transactions error', error);
+    const status = error.response?.status || 500;
+    const message = error.response?.data?.error_message || error.message;
+
+    if (status === 400 || status === 401) {
+      await User.findByIdAndUpdate(req.user.id, {
+        $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1 }
+      });
+    }
+
+    return res.status(status).json({ success: false, message });
+  }
+};
