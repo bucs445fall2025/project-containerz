@@ -7,6 +7,19 @@ function getRedirectUri() {
 
 exports.createLinkToken = async (req, res) => {
   try {
+		const user = await User.findById(req.user.id).select('verified');
+		if (!user) {
+			return res.status(404).json({
+				success: false,
+				message: "User not found"
+			});
+		}
+		if (!user.verified) {
+			return res.status(403).json({
+				success: false,
+				message: "You must verify your account before linking!"
+			});
+		}
     const response = await plaidClient.linkTokenCreate({
       user: {
         client_user_id: req.user.id
@@ -34,6 +47,19 @@ exports.createLinkToken = async (req, res) => {
 
 exports.exchangePublicToken = async (req, res) => {
   try {
+		const existingUser = await User.findById(req.user.id).select('verified');
+		if (!existingUser) {
+			return res.status(404).json({
+				success: false,
+				message: "User not found"
+			});
+		}
+		if (!existingUser.verified) {
+			return res.status(403).json({
+				success: false,
+				message: "You must verify your account before linking!"
+			});
+		}
     const { public_token: publicToken } = req.body || {};
 
     if (!publicToken) {
