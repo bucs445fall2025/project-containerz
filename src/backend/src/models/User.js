@@ -48,7 +48,12 @@ const UserSchema = mongoose.Schema({
     plaidItemId: {
         type: String,
         select: false
-    }
+    },
+    plaidCursor: {
+        type: String, 
+        select: false, 
+        default: null 
+    },
 },{
     timestamps: true
 })
