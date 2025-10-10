@@ -44,7 +44,8 @@ exports.signup = async (req,res) => {
         const safeUser = {
             id: String(result._id),
             name: result.name,
-            email: result.email
+            email: result.email,
+            verified: result.verified,
         };
 
         res.cookie('Authorization', 'Bearer ' + token, {
@@ -142,7 +143,8 @@ exports.me = async (req, res) => {
             user: {
                 id: String(user._id),
                 name: user.name,
-                email: user.email
+                email: user.email,
+                verified: user.verified,
             }
         });
     } catch (error) {

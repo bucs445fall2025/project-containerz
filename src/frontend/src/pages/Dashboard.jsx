@@ -1,17 +1,75 @@
+// src/frontend/src/pages/Dashboard.jsx
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlaidLink } from 'react-plaid-link';
 import { useAuth } from '../context/AuthContext.jsx';
 import { createLinkToken, fetchAccounts, setAccessToken } from '../api/plaid.js';
+import { sendVerificationCode, verifyVerificationCode } from '../api/auth.js';
 
 export default function DashboardPage() {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [linkToken, setLinkToken] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [linkWorking, setLinkWorking] = useState(false);
+  const isVerified = Boolean(user?.verified);
+  const [code, setCode] = useState('');
+  const [verificationStatus, setVerificationStatus] = useState({ sending: false, verifying: false, error: '', success: '' });
+  const [verificationOpen, setVerificationOpen] = useState(false);
+  const [hasRequestedCode, setHasRequestedCode] = useState(false);
   const [error, setError] = useState(null);
+
+  const handleSendCode = async () => {
+    setVerificationOpen(true);
+    setVerificationStatus((prev) => ({ ...prev, sending: true, error: '', success: '' }));
+    try {
+      await sendVerificationCode(token, user.email);
+      setHasRequestedCode(true);
+      setVerificationStatus((prev) => ({ ...prev, success: 'Code sent! Check your inbox.' }));
+    } catch (error) {
+      setVerificationStatus((prev) => ({ ...prev, error: error.message || 'Unable to send code.' }));
+    } finally {
+      setVerificationStatus((prev) => ({ ...prev, sending: false }));
+    }
+  };
+  
+  const handleVerifyCode = async (event) => {
+    event.preventDefault();
+    setVerificationStatus((prev) => ({ ...prev, verifying: true, error: '', success: '' }));
+    try {
+      await verifyVerificationCode(token, { email: user.email, code });
+      setVerificationStatus({ sending: false, verifying: false, error: '', success: 'Verified! Updating your account…' });
+      setCode('');
+      await refreshUser();
+      navigate(0);
+    } catch (error) {
+      setVerificationStatus((prev) => ({ ...prev, error: error.message || 'Invalid or expired code.' }));
+    } finally {
+      setVerificationStatus((prev) => ({ ...prev, verifying: false }));
+    }
+  };
+  
+  const handleStartVerification = async () => {
+    if (!verificationOpen) {
+      setVerificationOpen(true);
+    }
+    if (!hasRequestedCode && !verificationStatus.sending) {
+      await handleSendCode();
+    }
+  };
+
+  const handleHideVerification = () => {
+    setVerificationOpen(false);
+  };
+
+  const handleToggleVerification = async () => {
+    if (verificationOpen) {
+      handleHideVerification();
+      return;
+    }
+    await handleStartVerification();
+  };
 
   const handleSignOut = async () => {
     await logout();
@@ -165,16 +223,61 @@ export default function DashboardPage() {
           Sign out
         </button>
       </header>
-
+      {!isVerified && (
+        <>
+          <section className="verification-banner">
+            <h2>Verify your email to unlock everything</h2>
+            <p>We’ll need to confirm your email before you can connect bank accounts.</p>
+            <div className="verification-banner-actions">
+              <button
+                className="auth-button"
+                type="button"
+                onClick={handleToggleVerification}
+                disabled={verificationStatus.sending}
+              >
+                {verificationOpen ? 'Hide verification' : 'Verify now'}
+              </button>
+            </div>
+          </section>
+          {verificationOpen && (
+            <section className="verification-card">
+              <h3>Enter your 6-digit verification code</h3>
+              <p>We sent a code to <strong>{user?.email}</strong>. Didn&apos;t get it?</p>
+              <button type="button" onClick={handleSendCode} disabled={verificationStatus.sending}>
+                {verificationStatus.sending ? 'Sending…' : hasRequestedCode ? 'Resend code' : 'Send code'}
+              </button>
+              <form onSubmit={handleVerifyCode}>
+                <label htmlFor="verification-code-input">Verification code</label>
+                <input
+                  id="verification-code-input"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  maxLength={6}
+                  pattern="\d{6}"
+                  required
+                  placeholder="Enter 6-digit code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                />
+                <button type="submit" disabled={verificationStatus.verifying}>
+                  {verificationStatus.verifying ? 'Verifying…' : 'Verify'}
+                </button>
+              </form>
+              {verificationStatus.error && <p className="error">{verificationStatus.error}</p>}
+              {verificationStatus.success && <p className="success">{verificationStatus.success}</p>}
+            </section>
+          )}
+        </>
+      )}
       <section className="dashboard-body">
         <div className="dashboard-actions">
           <button
             className="auth-button"
             type="button"
             onClick={handleConnectBank}
-            disabled={!ready || linkWorking}
+            disabled={!ready || linkWorking || !isVerified}
           >
-            {linkWorking ? 'Finishing link…' : 'Connect a bank'}
+            {isVerified ? 'Connect a bank' : 'Verify account to connect'}
           </button>
           <button
             className="auth-button"

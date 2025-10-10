@@ -36,6 +36,9 @@ services:
 
   frontend:
     build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     container_name: fin-frontend
     restart: unless-stopped
     environment:
