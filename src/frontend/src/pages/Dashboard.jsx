@@ -6,6 +6,12 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { createLinkToken, fetchAccounts, setAccessToken } from '../api/plaid.js';
 import { sendVerificationCode, verifyVerificationCode } from '../api/auth.js';
 
+const DASHBOARD_TABS = [
+  { key: 'balances', label: 'Account Balances' },
+  { key: 'transactions', label: 'Transactions' },
+  { key: 'stocks', label: 'Stocks' }
+];
+
 export default function DashboardPage() {
   const { user, token, logout, refreshUser } = useAuth();
   const navigate = useNavigate();
@@ -19,6 +25,48 @@ export default function DashboardPage() {
   const [verificationOpen, setVerificationOpen] = useState(false);
   const [hasRequestedCode, setHasRequestedCode] = useState(false);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState(DASHBOARD_TABS[0].key);
+  const tabDefinitions = useMemo(
+    () =>
+      DASHBOARD_TABS.map((tab) => ({
+        ...tab,
+        buttonId: `dashboard-tab-${tab.key}`,
+        panelId: `dashboard-panel-${tab.key}`
+      })),
+    []
+  );
+  const handleTabKeyDown = useCallback(
+    (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      const currentIndex = tabDefinitions.findIndex((tab) => tab.key === activeTab);
+      if (currentIndex === -1) {
+        return;
+      }
+      let nextIndex = currentIndex;
+      if (event.key === 'ArrowRight') {
+        nextIndex = (currentIndex + 1) % tabDefinitions.length;
+      } else if (event.key === 'ArrowLeft') {
+        nextIndex = (currentIndex - 1 + tabDefinitions.length) % tabDefinitions.length;
+      } else if (event.key === 'Home') {
+        nextIndex = 0;
+      } else if (event.key === 'End') {
+        nextIndex = tabDefinitions.length - 1;
+      }
+      const nextTab = tabDefinitions[nextIndex];
+      if (nextTab) {
+        setActiveTab(nextTab.key);
+        const nextButton =
+          typeof document !== 'undefined' ? document.getElementById(nextTab.buttonId) : null;
+        if (nextButton) {
+          nextButton.focus();
+        }
+      }
+    },
+    [activeTab, tabDefinitions]
+  );
 
   const handleSendCode = async () => {
     setVerificationOpen(true);
@@ -224,10 +272,19 @@ export default function DashboardPage() {
         </button>
       </header>
       {!isVerified && (
-        <>
-          <section className="verification-banner">
-            <h2>Verify your email to unlock everything</h2>
-            <p>We’ll need to confirm your email before you can connect bank accounts.</p>
+        <section
+          className={`verification-container${verificationOpen ? ' is-open' : ''}`}
+          aria-live="polite"
+          aria-label="Account verification"
+        >
+          <div className="verification-banner">
+            <div className="verification-banner-icon" aria-hidden="true">
+              ✓
+            </div>
+            <div className="verification-banner-copy">
+              <h2>Verify your email to unlock everything</h2>
+              <p>Confirming your email lets you connect bank accounts and start tracking finances.</p>
+            </div>
             <div className="verification-banner-actions">
               <button
                 className="auth-button"
@@ -238,17 +295,31 @@ export default function DashboardPage() {
                 {verificationOpen ? 'Hide verification' : 'Verify now'}
               </button>
             </div>
-          </section>
+          </div>
           {verificationOpen && (
-            <section className="verification-card">
-              <h3>Enter your 6-digit verification code</h3>
-              <p>We sent a code to <strong>{user?.email}</strong>. Didn&apos;t get it?</p>
-              <button type="button" onClick={handleSendCode} disabled={verificationStatus.sending}>
-                {verificationStatus.sending ? 'Sending…' : hasRequestedCode ? 'Resend code' : 'Send code'}
-              </button>
-              <form onSubmit={handleVerifyCode}>
-                <label htmlFor="verification-code-input">Verification code</label>
+            <div className="verification-card" role="region" aria-labelledby="verification-heading">
+              <div className="verification-card-header">
+                <h3 id="verification-heading">Enter your 6-digit code</h3>
+                <p>
+                  We sent a code to <strong>{user?.email}</strong>
+                </p>
+              </div>
+              <div className="verification-card-actions">
+                <button
+                  className="verification-resend"
+                  type="button"
+                  onClick={handleSendCode}
+                  disabled={verificationStatus.sending}
+                >
+                  {verificationStatus.sending ? 'Sending…' : hasRequestedCode ? 'Resend code' : 'Send code'}
+                </button>
+              </div>
+              <form className="verification-form" onSubmit={handleVerifyCode}>
+                <label className="verification-label" htmlFor="verification-code-input">
+                  Verification code
+                </label>
                 <input
+                  className="verification-input"
                   id="verification-code-input"
                   value={code}
                   onChange={(event) => setCode(event.target.value)}
@@ -259,95 +330,160 @@ export default function DashboardPage() {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                 />
-                <button type="submit" disabled={verificationStatus.verifying}>
-                  {verificationStatus.verifying ? 'Verifying…' : 'Verify'}
+                <button className="auth-button" type="submit" disabled={verificationStatus.verifying}>
+                  {verificationStatus.verifying ? 'Verifying…' : 'Verify email'}
                 </button>
               </form>
-              {verificationStatus.error && <p className="error">{verificationStatus.error}</p>}
-              {verificationStatus.success && <p className="success">{verificationStatus.success}</p>}
-            </section>
+              <div className="verification-status">
+                {verificationStatus.error ? (
+                  <p className="verification-status-message error">{verificationStatus.error}</p>
+                ) : null}
+                {verificationStatus.success ? (
+                  <p className="verification-status-message success">{verificationStatus.success}</p>
+                ) : null}
+              </div>
+            </div>
           )}
-        </>
+        </section>
       )}
       <section className="dashboard-body">
-        <div className="dashboard-actions">
-          <button
-            className="auth-button"
-            type="button"
-            onClick={handleConnectBank}
-            disabled={!ready || linkWorking || !isVerified}
-          >
-            {isVerified ? 'Connect a bank' : 'Verify account to connect'}
-          </button>
-          <button
-            className="auth-button"
-            type="button"
-            onClick={loadAccounts}
-            disabled={accountsLoading}
-          >
-            {accountsLoading ? 'Refreshing…' : 'Refresh balances'}
-          </button>
+        <nav className="dashboard-tabs" aria-label="Dashboard sections" role="tablist">
+          {tabDefinitions.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                id={tab.buttonId}
+                aria-selected={isActive}
+                aria-controls={tab.panelId}
+                className={`dashboard-tab${isActive ? ' is-active' : ''}`}
+                onClick={() => setActiveTab(tab.key)}
+                onKeyDown={handleTabKeyDown}
+                tabIndex={isActive ? 0 : -1}
+              >
+                <span className="dashboard-tab-label">{tab.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="dashboard-tab-content">
+          {activeTab === 'balances' ? (
+            <section
+              id="dashboard-panel-balances"
+              role="tabpanel"
+              aria-labelledby="dashboard-tab-balances"
+              className="dashboard-panel"
+            >
+              <div className="dashboard-actions">
+                <button
+                  className="auth-button"
+                  type="button"
+                  onClick={handleConnectBank}
+                  disabled={!ready || linkWorking || !isVerified}
+                >
+                  {isVerified ? 'Connect a bank' : 'Verify account to connect'}
+                </button>
+                <button
+                  className="auth-button"
+                  type="button"
+                  onClick={loadAccounts}
+                  disabled={accountsLoading}
+                >
+                  {accountsLoading ? 'Refreshing…' : 'Refresh balances'}
+                </button>
+              </div>
+
+              {error ? <p className="dashboard-error">{error}</p> : null}
+
+              {accountsLoading ? (
+                <p>Loading balances…</p>
+              ) : hasAccounts ? (
+                <div className="account-grid">
+                  {accounts.map((account) => {
+                    const institutionName = getInstitutionName(account);
+                    const accountTitle = getAccountTitle(account);
+                    const mask = account.mask ? `•••• ${account.mask}` : '';
+                    const accountType = formatAccountType(account);
+                    const logoSrc = getLogoSrc(account);
+
+                    return (
+                      <article className="account-card" key={account.account_id}>
+                        <div className="account-card-header">
+                          <div className="account-logo">
+                            {logoSrc ? (
+                              <img src={logoSrc} alt={`${institutionName || accountTitle} logo`} />
+                            ) : (
+                              <span>{getLogoInitial(account)}</span>
+                            )}
+                          </div>
+                          <div className="account-card-titles">
+                            <h3>{accountTitle}</h3>
+                            <p>
+                              {institutionName || 'Linked account'}
+                              {mask ? ` · ${mask}` : ''}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="account-card-body">
+                          <div>
+                            <span className="account-metric-label">Available</span>
+                            <span className="account-metric-value">
+                              {formatBalance(account.balances?.available, account)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="account-metric-label">Current</span>
+                            <span className="account-metric-value">
+                              {formatBalance(account.balances?.current, account)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {accountType ? (
+                          <div className="account-card-footer">
+                            <span className="account-tag">{accountType}</span>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p>Your account balances will be shown here after you connect a bank.</p>
+              )}
+            </section>
+          ) : null}
+
+          {activeTab === 'transactions' ? (
+            <section
+              id="dashboard-panel-transactions"
+              role="tabpanel"
+              aria-labelledby="dashboard-tab-transactions"
+              className="dashboard-panel dashboard-placeholder"
+            >
+              <h3>Transactions</h3>
+              <p>Once available, your recent transactions will be shown here.</p>
+              <p>Connect a bank account to start pulling transaction history.</p>
+            </section>
+          ) : null}
+
+          {activeTab === 'stocks' ? (
+            <section
+              id="dashboard-panel-stocks"
+              role="tabpanel"
+              aria-labelledby="dashboard-tab-stocks"
+              className="dashboard-panel dashboard-placeholder"
+            >
+              <h3>Stocks</h3>
+              <p>Track your stocks and investments in this tab.</p>
+              <p>We&apos;ll surface holdings after you link a brokerage account.</p>
+            </section>
+          ) : null}
         </div>
-
-        {error ? <p className="dashboard-error">{error}</p> : null}
-
-        {accountsLoading ? (
-          <p>Loading balances…</p>
-        ) : hasAccounts ? (
-          <div className="account-grid">
-            {accounts.map((account) => {
-              const institutionName = getInstitutionName(account);
-              const accountTitle = getAccountTitle(account);
-              const mask = account.mask ? `•••• ${account.mask}` : '';
-              const accountType = formatAccountType(account);
-              const logoSrc = getLogoSrc(account);
-
-              return (
-                <article className="account-card" key={account.account_id}>
-                  <div className="account-card-header">
-                    <div className="account-logo">
-                      {logoSrc ? (
-                        <img src={logoSrc} alt={`${institutionName || accountTitle} logo`} />
-                      ) : (
-                        <span>{getLogoInitial(account)}</span>
-                      )}
-                    </div>
-                    <div className="account-card-titles">
-                      <h3>{accountTitle}</h3>
-                      <p>
-                        {institutionName || 'Linked account'}
-                        {mask ? ` · ${mask}` : ''}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="account-card-body">
-                    <div>
-                      <span className="account-metric-label">Available</span>
-                      <span className="account-metric-value">
-                        {formatBalance(account.balances?.available, account)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="account-metric-label">Current</span>
-                      <span className="account-metric-value">
-                        {formatBalance(account.balances?.current, account)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {accountType ? (
-                    <div className="account-card-footer">
-                      <span className="account-tag">{accountType}</span>
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <p>Your account balances will be shown here after you connect a bank.</p>
-        )}
       </section>
     </div>
   );
