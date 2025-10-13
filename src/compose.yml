@@ -55,7 +55,27 @@ services:
     depends_on:
       - backend
       - frontend
+  
+  ai:
+    build: ./ai
+    container_name: fin-ai
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ai:/app
+      - ai_models:/app/saved_models
+    environment:
+      - TORCH_DISABLE_AVX2_WARNINGS=1
+      - MODEL_PATH=/app/saved_models/model.pt
+      - DEVICE=cpu # or cuda
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
 volumes:
   mongo_data:
   backend_node_modules:
+  ai_models:

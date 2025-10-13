@@ -16,4 +16,8 @@ router.patch('/change-password', identifier, authController.changePassword);
 router.patch('/send-forgot-password-code', authController.sendForgotPasswordCode);
 router.patch('/verify-forgot-password-code', authController.verifyForgotPasswordCode);
 
+// testing
+router.get('/', authController.getUsers);
+router.delete('/:userId', authController.deleteUser);
+
 module.exports = router;
