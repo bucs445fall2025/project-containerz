@@ -55,3 +55,46 @@ export function getCurrentUser(token) {
 export function signOut(token) {
   return request('/auth/signout', { method: 'POST', token });
 }
+
+export function changePassword(token, params = {}) {
+  const { oldPassword, newPassword } = params;
+  return request('/auth/change-password', {
+    method: 'PATCH',
+    token,
+    body: { oldPassword, newPassword }
+  });
+}
+
+export function sendForgotPasswordCode(email) {
+  return request('/auth/send-forgot-password-code', {
+    method: 'PATCH',
+    body: { email }
+  });
+}
+
+export function verifyForgotPasswordCode(params = {}) {
+  const { email, code, providedCode, newPassword } = params;
+  const normalizedCode = (providedCode ?? code)?.toString().trim();
+  return request('/auth/verify-forgot-password-code', {
+    method: 'PATCH',
+    body: { email, providedCode: normalizedCode, newPassword }
+  });
+}
+
+export function sendVerificationCode(token, email) {
+  return request('/auth/send-verification-code', {
+    method: 'PATCH',
+    token,
+    body: { email }
+  });
+}
+
+export function verifyVerificationCode(token, params = {}) {
+  const { email, code, providedCode } = params;
+  const normalizedCode = providedCode ?? code;
+  return request('/auth/verify-verification-code', {
+    method: 'PATCH',
+    token,
+    body: { email, providedCode: normalizedCode }
+  });
+}

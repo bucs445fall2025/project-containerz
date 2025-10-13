@@ -54,6 +54,11 @@ const UserSchema = mongoose.Schema({
         select: false, 
         default: null 
     },
+    plaidTransactions: {
+        type: [mongoose.Schema.Types.Mixed],
+        select: false,
+        default: []
+    },
 },{
     timestamps: true
 })

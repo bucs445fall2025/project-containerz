@@ -41,6 +41,20 @@ export function AuthProvider({ children }) {
     };
   }, [token]);
 
+  const refreshUser = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await getCurrentUser(token);
+      setUser(response.user ?? null);
+    } catch (error) {
+      console.error('Unable to refresh user', error);
+      setToken(null);
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      setUser(null);
+    }
+  }, [token]);
+  
+
   const login = useCallback((nextToken, nextUser) => {
     localStorage.setItem(TOKEN_STORAGE_KEY, nextToken);
     setToken(nextToken);
@@ -61,8 +75,8 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const value = useMemo(
-    () => ({ token, user, loading, login, logout }),
-    [token, user, loading, login, logout]
+    () => ({ token, user, loading, login, logout, refreshUser }),
+    [token, user, loading, login, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
