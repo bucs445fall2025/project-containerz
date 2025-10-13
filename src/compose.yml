@@ -25,10 +25,13 @@ services:
       MONGODB_URI: mongodb://mongo:27017/fin_tool
       PORT: "3000"         #
       TOKEN_SECRET: dev-secret-key
+      AI_BASE_URL: http://fin-ai:8000
     ports:
       - "8081:3000"        
     depends_on:
       mongo:
+        condition: service_healthy
+      ai:
         condition: service_healthy
     volumes:
       - ./backend:/app
@@ -69,7 +72,7 @@ services:
       - MODEL_PATH=/app/saved_models/model.pt
       - DEVICE=cpu # or cuda
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
       interval: 10s
       timeout: 3s
       retries: 5
