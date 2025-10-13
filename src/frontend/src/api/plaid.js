@@ -16,3 +16,6 @@ export function fetchAccounts(token) {
   return request('/plaid/accounts', { token });
 }
 
+export function fetchTransactions(token) {
+  return request('/plaid/transactions', { token });
+}

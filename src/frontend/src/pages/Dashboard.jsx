@@ -3,14 +3,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlaidLink } from 'react-plaid-link';
 import { useAuth } from '../context/AuthContext.jsx';
-import { createLinkToken, fetchAccounts, setAccessToken } from '../api/plaid.js';
+import { createLinkToken, fetchAccounts, fetchTransactions, setAccessToken } from '../api/plaid.js';
 import { sendVerificationCode, verifyVerificationCode } from '../api/auth.js';
 
 const DASHBOARD_TABS = [
   { key: 'balances', label: 'Account Balances' },
   { key: 'transactions', label: 'Transactions' },
-  { key: 'stocks', label: 'Stocks' }
+  { key: 'stocks', label: 'Stocks' },
+  { key: 'analysis', label: 'Analysis' }
+
 ];
+
+const TRANSACTIONS_PER_PAGE = 10;
 
 export default function DashboardPage() {
   const { user, token, logout, refreshUser } = useAuth();
@@ -18,6 +22,11 @@ export default function DashboardPage() {
   const [linkToken, setLinkToken] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
+  const [transactions, setTransactions] = useState([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [transactionsError, setTransactionsError] = useState(null);
+  const [transactionsInitialized, setTransactionsInitialized] = useState(false);
+  const [transactionsPage, setTransactionsPage] = useState(1);
   const [linkWorking, setLinkWorking] = useState(false);
   const isVerified = Boolean(user?.verified);
   const [code, setCode] = useState('');
@@ -141,9 +150,37 @@ export default function DashboardPage() {
     }
   }, [token]);
 
+  const loadTransactions = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setTransactionsLoading(true);
+    setTransactionsError(null);
+    try {
+      const response = await fetchTransactions(token);
+      const fetchedTransactions =
+        response.transactions ?? response.latest_transactions ?? [];
+      setTransactions(fetchedTransactions);
+      setTransactionsPage(1);
+    } catch (err) {
+      console.error('Unable to load transactions', err);
+      setTransactionsError(err.message ?? 'Unable to load transactions');
+    } finally {
+      setTransactionsLoading(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     loadAccounts();
   }, [loadAccounts]);
+
+  useEffect(() => {
+    if (activeTab !== 'transactions' || transactionsInitialized || !token) {
+      return;
+    }
+    setTransactionsInitialized(true);
+    loadTransactions();
+  }, [activeTab, loadTransactions, token, transactionsInitialized]);
 
   useEffect(() => {
     if (!token) {
@@ -213,24 +250,81 @@ export default function DashboardPage() {
   };
 
   const hasAccounts = accounts.length > 0;
+  const hasTransactions = transactions.length > 0;
+  const totalTransactionPages = Math.max(1, Math.ceil(transactions.length / TRANSACTIONS_PER_PAGE));
+  const paginatedTransactions = useMemo(() => {
+    const start = (transactionsPage - 1) * TRANSACTIONS_PER_PAGE;
+    return transactions.slice(start, start + TRANSACTIONS_PER_PAGE);
+  }, [transactions, transactionsPage]);
+  const paginationStartIndex = (transactionsPage - 1) * TRANSACTIONS_PER_PAGE;
+  const paginationEndIndex = Math.min(
+    paginationStartIndex + TRANSACTIONS_PER_PAGE,
+    transactions.length
+  );
+  const transactionsDisplayStart = hasTransactions ? paginationStartIndex + 1 : 0;
+  const transactionsDisplayEnd = hasTransactions ? paginationEndIndex : 0;
+  const canGoPrevTransactions = transactionsPage > 1;
+  const canGoNextTransactions = transactionsPage < totalTransactionPages;
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(transactions.length / TRANSACTIONS_PER_PAGE));
+    setTransactionsPage((current) => {
+      if (!transactions.length) {
+        return 1;
+      }
+      if (current > maxPage) {
+        return maxPage;
+      }
+      return current;
+    });
+  }, [transactions]);
+
+  const handlePrevTransactionsPage = () => {
+    if (!canGoPrevTransactions) {
+      return;
+    }
+    setTransactionsPage((prev) => Math.max(prev - 1, 1));
+  };
+
+  const handleNextTransactionsPage = () => {
+    if (!canGoNextTransactions) {
+      return;
+    }
+    setTransactionsPage((prev) => Math.min(prev + 1, totalTransactionPages));
+  };
+
+  const accountLookup = useMemo(() => {
+    const lookup = new Map();
+    accounts.forEach((account) => {
+      if (account?.account_id) {
+        lookup.set(account.account_id, account);
+      }
+    });
+    return lookup;
+  }, [accounts]);
 
   const getCurrencyCode = (account) =>
     account?.balances?.iso_currency_code || account?.balances?.unofficial_currency_code || 'USD';
 
-  const formatBalance = (value, account) => {
+  const formatCurrency = (value, currencyCode = 'USD') => {
     if (value === null || value === undefined) {
       return '—';
     }
-    const currencyCode = getCurrencyCode(account);
+    const numericValue = Number(value);
+    if (Number.isNaN(numericValue)) {
+      return `${value}`;
+    }
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: currencyCode
-      }).format(value);
-    } catch (err) {
-      return `$${value.toLocaleString()}`;
+      }).format(numericValue);
+    } catch (_error) {
+      return `$${numericValue.toLocaleString()}`;
     }
   };
+
+  const formatBalance = (value, account) => formatCurrency(value, getCurrencyCode(account));
 
   const getInstitutionName = (account) =>
     account?.institution?.name || account?.bank_name || account?.bankName || account?.name;
@@ -258,6 +352,48 @@ export default function DashboardPage() {
       .split('_')
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  };
+
+  const getTransactionCurrency = (transaction) =>
+    transaction?.iso_currency_code || transaction?.unofficial_currency_code || 'USD';
+
+  const formatTransactionDate = (value) => {
+    if (!value) {
+      return '—';
+    }
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }).format(new Date(`${value}T00:00:00`));
+    } catch (_error) {
+      return value;
+    }
+  };
+
+  const formatTextLabel = (value) =>
+    value
+      ?.toString()
+      .split(/[_\s]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ') || '';
+
+  const formatTransactionAmount = (transaction) => {
+    const amount = Number(transaction?.amount ?? 0);
+    if (Number.isNaN(amount)) {
+      return '—';
+    }
+    const currencyCode = getTransactionCurrency(transaction);
+    const formatted = formatCurrency(Math.abs(amount), currencyCode);
+    if (amount < 0) {
+      return `+${formatted}`;
+    }
+    if (amount > 0) {
+      return `-${formatted}`;
+    }
+    return formatted;
   };
 
   return (
@@ -463,11 +599,129 @@ export default function DashboardPage() {
               id="dashboard-panel-transactions"
               role="tabpanel"
               aria-labelledby="dashboard-tab-transactions"
-              className="dashboard-panel dashboard-placeholder"
+              className="dashboard-panel"
             >
-              <h3>Transactions</h3>
-              <p>Once available, your recent transactions will be shown here.</p>
-              <p>Connect a bank account to start pulling transaction history.</p>
+              <div className="dashboard-actions">
+                <button
+                  className="auth-button"
+                  type="button"
+                  onClick={loadTransactions}
+                  disabled={transactionsLoading}
+                >
+                  {transactionsLoading
+                    ? hasTransactions
+                      ? 'Refreshing…'
+                      : 'Loading…'
+                    : 'Refresh transactions'}
+                </button>
+              </div>
+
+              {transactionsError ? <p className="dashboard-error">{transactionsError}</p> : null}
+
+              {transactionsLoading && !hasTransactions ? <p>Loading transactions…</p> : null}
+
+              {hasTransactions ? (
+                <>
+                  <div className="transaction-list" role="list">
+                    {paginatedTransactions.map((transaction) => {
+                      const transactionKey =
+                        transaction.transaction_id ||
+                        transaction.pending_transaction_id ||
+                        `${transaction.account_id}-${transaction.date}-${transaction.name}`;
+                      const account = accountLookup.get(transaction.account_id);
+                      const accountTitle = account ? getAccountTitle(account) : null;
+                      const institutionName = account ? getInstitutionName(account) : null;
+                      const accountLabel =
+                        institutionName && accountTitle && institutionName !== accountTitle
+                          ? `${institutionName} · ${accountTitle}`
+                          : institutionName || accountTitle;
+                      const categoryLabel = transaction.personal_finance_category?.primary
+                        ? formatTextLabel(transaction.personal_finance_category.primary)
+                        : transaction.category?.length
+                        ? transaction.category.join(' • ')
+                        : '';
+                      const amountText = formatTransactionAmount(transaction);
+                      const isCredit = Number(transaction?.amount ?? 0) < 0;
+                      const formattedDate = formatTransactionDate(transaction.date);
+                      const transactionName =
+                        transaction.merchant_name || transaction.name || 'Transaction';
+
+                      return (
+                        <article className="transaction-item" role="listitem" key={transactionKey}>
+                          <div className="transaction-item-header">
+                            <h4 className="transaction-name">{transactionName}</h4>
+                            <span
+                              className={`transaction-amount${
+                                isCredit ? ' is-credit' : ' is-debit'
+                              }`}
+                            >
+                              {amountText}
+                            </span>
+                          </div>
+                          <div className="transaction-meta">
+                            {formattedDate && formattedDate !== '—' ? (
+                              <span className="transaction-meta-item">{formattedDate}</span>
+                            ) : null}
+                            {accountLabel ? (
+                              <span className="transaction-meta-item">{accountLabel}</span>
+                            ) : null}
+                            {categoryLabel ? (
+                              <span className="transaction-meta-item">{categoryLabel}</span>
+                            ) : null}
+                            {transaction.pending ? (
+                              <span className="transaction-meta-item transaction-status">
+                                Pending
+                              </span>
+                            ) : null}
+                          </div>
+                          {transaction.location?.city || transaction.location?.region ? (
+                            <div className="transaction-location">
+                              <span>
+                                {[transaction.location?.city, transaction.location?.region]
+                                  .filter(Boolean)
+                                  .join(', ')}
+                              </span>
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+                  <div className="transaction-pagination">
+                    <span className="transaction-pagination-info">
+                      Showing {transactionsDisplayStart}-{transactionsDisplayEnd} of{' '}
+                      {transactions.length}
+                    </span>
+                    <div className="transaction-pagination-controls">
+                      <button
+                        className="transaction-page-button"
+                        type="button"
+                        onClick={handlePrevTransactionsPage}
+                        disabled={!canGoPrevTransactions || transactionsLoading}
+                      >
+                        Previous
+                      </button>
+                      <span className="transaction-pagination-page">
+                        Page {transactionsPage} of {totalTransactionPages}
+                      </span>
+                      <button
+                        className="transaction-page-button"
+                        type="button"
+                        onClick={handleNextTransactionsPage}
+                        disabled={!canGoNextTransactions || transactionsLoading}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : !transactionsLoading ? (
+                <p>
+                  {hasAccounts
+                    ? 'No recent transactions yet. Try refreshing again shortly.'
+                    : 'Connect a bank account to start pulling transaction history.'}
+                </p>
+              ) : null}
             </section>
           ) : null}
 
