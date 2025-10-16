@@ -424,6 +424,130 @@ a:hover {
   font-size: 0.95rem;
 }
 
+.transaction-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.transaction-content.has-breakdown {
+  align-items: stretch;
+}
+
+.transaction-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.transaction-feed-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.transaction-feed-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1e293b;
+}
+
+.transaction-feed-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.transaction-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.transaction-breakdown-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.transaction-breakdown-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1e293b;
+}
+
+.transaction-breakdown-total {
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.transaction-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.transaction-breakdown-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.transaction-breakdown-labels {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.transaction-breakdown-labels .transaction-breakdown-percent {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.transaction-breakdown-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+  overflow: hidden;
+}
+
+.transaction-breakdown-fill {
+  height: 100%;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  border-radius: inherit;
+  min-width: 4px;
+  transition: width 0.3s ease;
+}
+
+.transaction-breakdown-amount {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
 .transaction-list {
   display: flex;
   flex-direction: column;
@@ -439,6 +563,15 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+}
+
+@media (min-width: 960px) {
+  .transaction-content.has-breakdown {
+    display: grid;
+    grid-template-columns: minmax(0, 2.35fr) minmax(0, 1fr);
+    gap: 1.75rem;
+    align-items: start;
+  }
 }
 
 .transaction-item-header {
@@ -739,6 +872,30 @@ a:hover {
 
   .transaction-item {
     padding: 1rem 1.1rem;
+  }
+
+  .transaction-feed {
+    padding: 1.25rem;
+  }
+
+  .transaction-feed-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  .transaction-feed-meta {
+    font-size: 0.8rem;
+  }
+
+  .transaction-breakdown {
+    padding: 1.25rem;
+  }
+
+  .transaction-breakdown-labels {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
   }
 
   .transaction-item-header {

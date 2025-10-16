@@ -249,8 +249,50 @@ export default function DashboardPage() {
     open();
   };
 
+  const spendingBreakdown = useMemo(() => {
+    const totals = new Map();
+    let total = 0;
+
+    transactions.forEach((transaction) => {
+      const rawAmount = Number(transaction?.amount);
+      if (!Number.isFinite(rawAmount) || rawAmount <= 0) {
+        return;
+      }
+      const categoryKey =
+        transaction.personal_finance_category?.primary ||
+        (transaction.category?.[0] ?? 'uncategorized');
+      const amount = rawAmount;
+      const currency =
+        transaction.iso_currency_code ||
+        transaction.unofficial_currency_code ||
+        'USD';
+
+      total += amount;
+      const existing = totals.get(categoryKey);
+      if (existing) {
+        existing.amount += amount;
+      } else {
+        totals.set(categoryKey, { amount, currency });
+      }
+    });
+
+    const categories = Array.from(totals.entries())
+      .map(([key, value]) => ({
+        key: key || 'uncategorized',
+        amount: value.amount,
+        currency: value.currency
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    return { total, categories };
+  }, [transactions]);
+
   const hasAccounts = accounts.length > 0;
   const hasTransactions = transactions.length > 0;
+  const spendingBreakdownTotalCurrency =
+    spendingBreakdown.categories[0]?.currency || 'USD';
+  const showSpendingBreakdown =
+    spendingBreakdown.total > 0 && spendingBreakdown.categories.length > 0;
   const totalTransactionPages = Math.max(1, Math.ceil(transactions.length / TRANSACTIONS_PER_PAGE));
   const paginatedTransactions = useMemo(() => {
     const start = (transactionsPage - 1) * TRANSACTIONS_PER_PAGE;
@@ -400,7 +442,7 @@ export default function DashboardPage() {
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
-          <h1>Hello {user?.name ?? 'there'}!</h1>
+          <h1>Hello, {user?.name ?? 'there'}!</h1>
           <p className="dashboard-subtitle">This is your dashboard home.</p>
         </div>
         <button className="auth-button" type="button" onClick={handleSignOut}>
@@ -621,100 +663,172 @@ export default function DashboardPage() {
               {transactionsLoading && !hasTransactions ? <p>Loading transactions…</p> : null}
 
               {hasTransactions ? (
-                <>
-                  <div className="transaction-list" role="list">
-                    {paginatedTransactions.map((transaction) => {
-                      const transactionKey =
-                        transaction.transaction_id ||
-                        transaction.pending_transaction_id ||
-                        `${transaction.account_id}-${transaction.date}-${transaction.name}`;
-                      const account = accountLookup.get(transaction.account_id);
-                      const accountTitle = account ? getAccountTitle(account) : null;
-                      const institutionName = account ? getInstitutionName(account) : null;
-                      const accountLabel =
-                        institutionName && accountTitle && institutionName !== accountTitle
-                          ? `${institutionName} · ${accountTitle}`
-                          : institutionName || accountTitle;
-                      const categoryLabel = transaction.personal_finance_category?.primary
-                        ? formatTextLabel(transaction.personal_finance_category.primary)
-                        : transaction.category?.length
-                        ? transaction.category.join(' • ')
-                        : '';
-                      const amountText = formatTransactionAmount(transaction);
-                      const isCredit = Number(transaction?.amount ?? 0) < 0;
-                      const formattedDate = formatTransactionDate(transaction.date);
-                      const transactionName =
-                        transaction.merchant_name || transaction.name || 'Transaction';
+                <div
+                  className={`transaction-content${
+                    showSpendingBreakdown ? ' has-breakdown' : ''
+                  }`}
+                >
+                  <section className="transaction-feed" aria-label="Recent transactions">
+                    <div className="transaction-feed-header">
+                      <h3>Recent activity</h3>
+                      <span className="transaction-feed-meta">
+                        {transactions.length} transaction
+                        {transactions.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <div className="transaction-list" role="list">
+                      {paginatedTransactions.map((transaction) => {
+                        const transactionKey =
+                          transaction.transaction_id ||
+                          transaction.pending_transaction_id ||
+                          `${transaction.account_id}-${transaction.date}-${transaction.name}`;
+                        const account = accountLookup.get(transaction.account_id);
+                        const accountTitle = account ? getAccountTitle(account) : null;
+                        const institutionName = account ? getInstitutionName(account) : null;
+                        const backgroundColor = transaction.personal_finance_category?.confidence_level === 'VERY_HIGH' ? "#faafaf" : "#fff";
+                        const accountLabel =
+                          institutionName && accountTitle && institutionName !== accountTitle
+                            ? `${institutionName} · ${accountTitle}`
+                            : institutionName || accountTitle;
+                        const categoryLabel = transaction.personal_finance_category?.primary
+                          ? formatTextLabel(transaction.personal_finance_category.primary)
+                          : transaction.category?.length
+                          ? transaction.category.join(' • ')
+                          : '';
+                        const confidenceLevel = transaction.personal_finance_category?.confidence_level;
+                        const amountText = formatTransactionAmount(transaction);
+                        const isCredit = Number(transaction?.amount ?? 0) < 0;
+                        const formattedDate = formatTransactionDate(transaction.date);
+                        const transactionName =
+                          transaction.merchant_name || transaction.name || 'Transaction';
 
-                      return (
-                        <article className="transaction-item" role="listitem" key={transactionKey}>
-                          <div className="transaction-item-header">
-                            <h4 className="transaction-name">{transactionName}</h4>
-                            <span
-                              className={`transaction-amount${
-                                isCredit ? ' is-credit' : ' is-debit'
-                              }`}
-                            >
-                              {amountText}
-                            </span>
-                          </div>
-                          <div className="transaction-meta">
-                            {formattedDate && formattedDate !== '—' ? (
-                              <span className="transaction-meta-item">{formattedDate}</span>
-                            ) : null}
-                            {accountLabel ? (
-                              <span className="transaction-meta-item">{accountLabel}</span>
-                            ) : null}
-                            {categoryLabel ? (
-                              <span className="transaction-meta-item">{categoryLabel}</span>
-                            ) : null}
-                            {transaction.pending ? (
-                              <span className="transaction-meta-item transaction-status">
-                                Pending
-                              </span>
-                            ) : null}
-                          </div>
-                          {transaction.location?.city || transaction.location?.region ? (
-                            <div className="transaction-location">
-                              <span>
-                                {[transaction.location?.city, transaction.location?.region]
-                                  .filter(Boolean)
-                                  .join(', ')}
+                        return (
+                          <article className="transaction-item" role="listitem" key={transactionKey} style={{backgroundColor}}>
+                            <div className="transaction-item-header">
+                              <h4 className="transaction-name">{transactionName}</h4>
+                              <span
+                                className={`transaction-amount${
+                                  isCredit ? ' is-credit' : ' is-debit'
+                                }`}
+                              >
+                                {amountText}
                               </span>
                             </div>
-                          ) : null}
-                        </article>
-                      );
-                    })}
-                  </div>
-                  <div className="transaction-pagination">
-                    <span className="transaction-pagination-info">
-                      Showing {transactionsDisplayStart}-{transactionsDisplayEnd} of{' '}
-                      {transactions.length}
-                    </span>
-                    <div className="transaction-pagination-controls">
-                      <button
-                        className="transaction-page-button"
-                        type="button"
-                        onClick={handlePrevTransactionsPage}
-                        disabled={!canGoPrevTransactions || transactionsLoading}
-                      >
-                        Previous
-                      </button>
-                      <span className="transaction-pagination-page">
-                        Page {transactionsPage} of {totalTransactionPages}
-                      </span>
-                      <button
-                        className="transaction-page-button"
-                        type="button"
-                        onClick={handleNextTransactionsPage}
-                        disabled={!canGoNextTransactions || transactionsLoading}
-                      >
-                        Next
-                      </button>
+                            <div className="transaction-meta">
+                              {formattedDate && formattedDate !== '—' ? (
+                                <span className="transaction-meta-item">{formattedDate}</span>
+                              ) : null}
+                              {accountLabel ? (
+                                <span className="transaction-meta-item">{accountLabel}</span>
+                              ) : null}
+                              {categoryLabel ? (
+                                <span className="transaction-meta-item">{categoryLabel}</span>
+                              ) : null}
+                              {transaction.pending ? (
+                                <span className="transaction-meta-item transaction-status">
+                                  Pending
+                                </span>
+                              ) : null}
+                            </div>
+                            {transaction.location?.city || transaction.location?.region ? (
+                              <div className="transaction-location">
+                                <span>
+                                  {[transaction.location?.city, transaction.location?.region]
+                                    .filter(Boolean)
+                                    .join(', ')}
+                                </span>
+                              </div>
+                            ) : null}
+                          </article>
+                        );
+                      })}
                     </div>
-                  </div>
-                </>
+                    <div className="transaction-pagination">
+                      <span className="transaction-pagination-info">
+                        Showing {transactionsDisplayStart}-{transactionsDisplayEnd} of{' '}
+                        {transactions.length}
+                      </span>
+                      <div className="transaction-pagination-controls">
+                        <button
+                          className="transaction-page-button"
+                          type="button"
+                          onClick={handlePrevTransactionsPage}
+                          disabled={!canGoPrevTransactions || transactionsLoading}
+                        >
+                          Previous
+                        </button>
+                        <span className="transaction-pagination-page">
+                          Page {transactionsPage} of {totalTransactionPages}
+                        </span>
+                        <button
+                          className="transaction-page-button"
+                          type="button"
+                          onClick={handleNextTransactionsPage}
+                          disabled={!canGoNextTransactions || transactionsLoading}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                  {showSpendingBreakdown ? (
+                    <aside
+                      className="transaction-breakdown"
+                      role="complementary"
+                      aria-label="Spending by category"
+                    >
+                      <div className="transaction-breakdown-header">
+                        <h3>Spending by category</h3>
+                        <span className="transaction-breakdown-total">
+                          {formatCurrency(spendingBreakdown.total, spendingBreakdownTotalCurrency)}
+                        </span>
+                      </div>
+                      <div className="transaction-breakdown-list">
+                        {spendingBreakdown.categories.map((category) => {
+                          const percent =
+                            spendingBreakdown.total > 0
+                              ? (category.amount / spendingBreakdown.total) * 100
+                              : 0;
+                          const displayPercent =
+                            percent >= 10
+                              ? Math.round(percent)
+                              : percent >= 1
+                              ? Number(percent.toFixed(1))
+                              : Number(percent.toFixed(2));
+                          const categoryLabel =
+                            formatTextLabel(category.key) || 'Uncategorized';
+
+                          return (
+                            <div className="transaction-breakdown-item" key={category.key}>
+                              <div className="transaction-breakdown-labels">
+                                <span className="transaction-breakdown-label">{categoryLabel}</span>
+                                <span className="transaction-breakdown-percent">
+                                  {displayPercent}%
+                                </span>
+                              </div>
+                              <div
+                                className="transaction-breakdown-bar"
+                                role="progressbar"
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={Math.round(percent)}
+                                aria-valuetext={`${categoryLabel} ${percent.toFixed(1)}%`}
+                              >
+                                <div
+                                  className="transaction-breakdown-fill"
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
+                              <span className="transaction-breakdown-amount">
+                                {formatCurrency(category.amount, category.currency)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </aside>
+                  ) : null}
+                </div>
               ) : !transactionsLoading ? (
                 <p>
                   {hasAccounts
