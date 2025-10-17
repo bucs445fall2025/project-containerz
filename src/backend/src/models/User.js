@@ -59,6 +59,11 @@ const UserSchema = mongoose.Schema({
         select: false,
         default: []
     },
+    plaidInvestments: {
+        type: [mongoose.Schema.Types.Mixed],
+        select: false,
+        default: []
+    }
 },{
     timestamps: true
 })
