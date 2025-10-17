@@ -283,3 +283,55 @@ exports.getTransactions = async (req, res) => {
     return res.status(status).json({ success: false, message });
   }
 };
+
+exports.getInvestments = async (req, res) => {
+  try {
+    console.log('[INV] req.user =', req.user); // should show { id: "...", ... }
+
+    const user = await User.findById(req.user.id).select('+plaidAccessToken +plaidItemId');
+    console.log('[INV] user? ', !!user, ' token? ', !!user?.plaidAccessToken, ' item? ', user?.plaidItemId)
+
+    const accessToken = user?.plaidAccessToken;
+
+    if (!accessToken) {
+      return res.status(400).json({ success: false, message: 'No access token found.' });
+    }
+
+    // instead of moment
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const endDate = new Date().toISOString().split('T')[0];
+
+    const configs = {
+      access_token: accessToken,
+      start_date: startDate,
+      end_date: endDate,
+    };
+
+    const investmentTransactionsResponse = await plaidClient.investmentsTransactionsGet(configs)
+    const investmentsData = investmentTransactionsResponse.data.investment_transactions || [];
+
+    await User.findByIdAndUpdate(req.user.id, {
+      $set: { plaidInvestments: investmentsData }
+    });
+
+    return res.json({
+      success: true,
+      investments_transactions: investmentTransactionsResponse.data,
+    });
+
+  } catch (error) {
+    console.error('Plaid get investments error:', error);
+
+    const status = error.response?.status || 500;
+    const message = error.response?.data?.error_message || error.message;
+
+    if (status === 400 || status === 401) {
+      await User.findByIdAndUpdate(req.user.id, {
+        $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1 },
+        $set: { plaidInvestments: [] }
+      });
+    }
+
+    return res.status(status).json({ success: false, message });
+  }
+};
