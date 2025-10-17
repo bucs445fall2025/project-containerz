@@ -1,14 +1,15 @@
-# << Project Title >>
+# FinWiz
 ## CS 445 Final Project
-### << Semester, Year >>
+### Fall, 2025
 
-### Team: << team name >>
-<< List Team Members >>
+### Team: Containzerz
+Samuel Montes, Fernando Oliveira
 
 ## Getting Started
-<<One paragraph of project description goes here>>
+The purpose of our project is to simplify personal finance management. Today, people juggle multiple accounts - credit cards, savings, mortgages, and more - making it difficult to get a clear picture of their finances. Our app brings all of these accounts together in one place, helping users track spending habits and make smarter financial decisions. Beyond simple tracking, the app provides insights and comparisons - for instance, showing how a $7 dollar coffee could instead grow if invested in the stock market with a company like NVIDIA. Our target audience is young adults who want to gain a financial edge, build healthy money habits early, and be encouraged to invest while they are still young. 
 
-### Roadmap
+
+### Roadmap (not complete)
   <<
 A list of features, function or non-functional, you would like to add in the future if you had time, i.e. Phase 2 stuff
 - [ ] Add Changelog
@@ -18,13 +19,13 @@ A list of features, function or non-functional, you would like to add in the fut
   >>
   
 ## SRS
-[document](url to google doc)
+[SRS Document](https://docs.google.com/document/d/1D3O7_8-1gF3yylAjzuzBACsFTI97dkmTu2MsJCKZDz0/edit?usp=sharing)
   
 ### Prerequisites
 * [Docker](https://www.docker.com/)
 * <<any additional software. Be specific about versions.>>
 
-### Installing
+### Installing (not complete)
 <<
  A step by step series of examples that tell you how to get a development env running
 Say what the step will be  
@@ -35,13 +36,17 @@ End with an example of getting some output from the system, such as a menu or pr
 >>
 
 ## Built With
- << list all frameworks and modules used here >>
-* [requests](https://docs.python-requests.org/en/latest/user/quickstart/#make-a-request) - request for humans
+ * [React]() - Frontend Framework
+ * [TailwindCSS]()
+ * [Node.JS]()
+ * [Express.JS]()
+ * [NGINX]()
+ * [MongoDB]()
 
-## License
+## License (not complete)
 << Add a [license](https://choosealicense.com/) >>
 
-## Acknowledgments
+## Acknowledgments (not complete)
 * Hat tip to anyone whose code was used
 * Inspiration
 * etc
