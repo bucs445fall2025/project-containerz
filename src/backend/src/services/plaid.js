@@ -1,7 +1,8 @@
 const { Configuration, PlaidApi, PlaidEnvironments } = require('plaid');
 
 const DEFAULT_ENV = 'sandbox';
-const DEFAULT_PRODUCTS = ['auth'];
+const REQUIRED_PRODUCTS = ['auth', 'transactions', 'investments'];
+const DEFAULT_PRODUCTS = REQUIRED_PRODUCTS;
 const DEFAULT_COUNTRY_CODES = ['US'];
 
 function getRequiredEnv(name) {
@@ -46,7 +47,9 @@ const configuration = new Configuration({
 const plaidClient = new PlaidApi(configuration);
 
 function getProducts() {
-  return parseEnvList(process.env.PLAID_PRODUCTS, DEFAULT_PRODUCTS);
+  const configured = parseEnvList(process.env.PLAID_PRODUCTS, []);
+  const merged = new Set([...configured, ...REQUIRED_PRODUCTS]);
+  return Array.from(merged);
 }
 
 function getCountryCodes() {
@@ -58,4 +61,3 @@ module.exports = {
   getProducts,
   getCountryCodes
 };
-
