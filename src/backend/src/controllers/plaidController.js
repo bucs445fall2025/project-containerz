@@ -7,7 +7,7 @@ function getRedirectUri() {
 
 exports.createLinkToken = async (req, res) => {
   try {
-		const user = await User.findById(req.user.id).select('verified');
+		const user = await User.findById(req.user.id).select('verified +plaidAccessToken +plaidItemId');
 		if (!user) {
 			return res.status(404).json({
 				success: false,
@@ -20,16 +20,45 @@ exports.createLinkToken = async (req, res) => {
 				message: "You must verify your account before linking!"
 			});
 		}
-    const response = await plaidClient.linkTokenCreate({
+    const products = getProducts();
+    const baseRequest = {
       user: {
         client_user_id: req.user.id
       },
       client_name: process.env.PLAID_CLIENT_NAME || 'Fin Tool',
       country_codes: getCountryCodes(),
-      products: getProducts(),
       language: process.env.PLAID_LANGUAGE || 'en',
       redirect_uri: getRedirectUri()
-    });
+    };
+
+    if (user.plaidAccessToken) {
+      try {
+        const itemResponse = await plaidClient.itemGet({
+          access_token: user.plaidAccessToken
+        });
+        const billedProducts =
+          itemResponse.data?.item?.billed_products ??
+          itemResponse.data?.item?.products ??
+          [];
+        const missingProducts = products.filter(
+          (product) => !billedProducts.includes(product)
+        );
+
+        if (missingProducts.length > 0) {
+          baseRequest.access_token = user.plaidAccessToken;
+          baseRequest.additional_consented_products = missingProducts;
+        } else {
+          baseRequest.products = products;
+        }
+      } catch (itemError) {
+        console.warn('Plaid item lookup failed while creating link token', itemError);
+        baseRequest.products = products;
+      }
+    } else {
+      baseRequest.products = products;
+    }
+
+    const response = await plaidClient.linkTokenCreate(baseRequest);
 
     res.json({
       success: true,
@@ -286,52 +315,133 @@ exports.getTransactions = async (req, res) => {
 
 exports.getInvestments = async (req, res) => {
   try {
-    console.log('[INV] req.user =', req.user); // should show { id: "...", ... }
+    const user = await User.findById(req.user.id).select(
+      '+plaidAccessToken +plaidItemId +plaidInvestments'
+    );
 
-    const user = await User.findById(req.user.id).select('+plaidAccessToken +plaidItemId');
-    console.log('[INV] user? ', !!user, ' token? ', !!user?.plaidAccessToken, ' item? ', user?.plaidItemId)
-
-    const accessToken = user?.plaidAccessToken;
-
-    if (!accessToken) {
-      return res.status(400).json({ success: false, message: 'No access token found.' });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // instead of moment
+    const storedInvestments = Array.isArray(user.plaidInvestments) ? user.plaidInvestments : [];
+
+    if (!user.plaidAccessToken) {
+      return res.json({
+        success: true,
+        investments_transactions: {
+          accounts: [],
+          investment_transactions: storedInvestments,
+          securities: []
+        }
+      });
+    }
+
+    const itemResponse = await plaidClient.itemGet({
+      access_token: user.plaidAccessToken
+    });
+    const billedProducts =
+      itemResponse.data?.item?.billed_products ?? itemResponse.data?.item?.products ?? [];
+    const availableProducts = itemResponse.data?.item?.available_products ?? [];
+    const hasInvestmentsConsent = billedProducts.includes('investments');
+
+    if (!hasInvestmentsConsent) {
+      const message = availableProducts.includes('investments')
+        ? 'Your connection supports investments, but additional consent is required. Reconnect this institution to grant investments access.'
+        : 'The linked institution does not provide investments data through Plaid. Connect a brokerage account that supports investments.';
+      return res.status(409).json({
+        success: false,
+        code: 'INVESTMENTS_NOT_CONSENTED',
+        message
+      });
+    }
+
     const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const endDate = new Date().toISOString().split('T')[0];
 
     const configs = {
-      access_token: accessToken,
+      access_token: user.plaidAccessToken,
       start_date: startDate,
-      end_date: endDate,
+      end_date: endDate
     };
 
-    const investmentTransactionsResponse = await plaidClient.investmentsTransactionsGet(configs)
+    const holdingsResponse = await plaidClient.investmentsHoldingsGet({
+      access_token: user.plaidAccessToken
+    });
+
+    const investmentTransactionsResponse = await plaidClient.investmentsTransactionsGet(configs);
     const investmentsData = investmentTransactionsResponse.data.investment_transactions || [];
 
     await User.findByIdAndUpdate(req.user.id, {
       $set: { plaidInvestments: investmentsData }
     });
 
-    return res.json({
-      success: true,
-      investments_transactions: investmentTransactionsResponse.data,
+    const holdingsData = Array.isArray(holdingsResponse.data?.holdings)
+      ? holdingsResponse.data.holdings
+      : [];
+    const holdingsAccounts = Array.isArray(holdingsResponse.data?.accounts)
+      ? holdingsResponse.data.accounts
+      : [];
+    const holdingsSecurities = Array.isArray(holdingsResponse.data?.securities)
+      ? holdingsResponse.data.securities
+      : [];
+
+    const transactionAccounts = Array.isArray(investmentTransactionsResponse.data?.accounts)
+      ? investmentTransactionsResponse.data.accounts
+      : [];
+    const transactionSecurities = Array.isArray(investmentTransactionsResponse.data?.securities)
+      ? investmentTransactionsResponse.data.securities
+      : [];
+
+    const accountsMap = new Map();
+    [...holdingsAccounts, ...transactionAccounts].forEach((account) => {
+      if (account?.account_id && !accountsMap.has(account.account_id)) {
+        accountsMap.set(account.account_id, account);
+      }
     });
 
+    const securitiesMap = new Map();
+    [...holdingsSecurities, ...transactionSecurities].forEach((security) => {
+      if (security?.security_id && !securitiesMap.has(security.security_id)) {
+        securitiesMap.set(security.security_id, security);
+      }
+    });
+
+    const responsePayload = {
+      accounts: Array.from(accountsMap.values()),
+      holdings: holdingsData,
+      investment_transactions: investmentsData,
+      securities: Array.from(securitiesMap.values()),
+      as_of: new Date().toISOString(),
+      request_ids: {
+        holdings: holdingsResponse.data?.request_id,
+        transactions: investmentTransactionsResponse.data?.request_id
+      }
+    };
+
+    return res.json({
+      success: true,
+      investments: responsePayload,
+      investments_transactions: investmentTransactionsResponse.data
+    });
   } catch (error) {
     console.error('Plaid get investments error:', error);
 
     const status = error.response?.status || 500;
     const message = error.response?.data?.error_message || error.message;
 
-    if (status === 400 || status === 401) {
+    if (status === 400 || status === 401 || status === 403) {
       await User.findByIdAndUpdate(req.user.id, {
         $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1 },
         $set: { plaidInvestments: [] }
       });
     }
+    let responseMessage = message;
+    const errorCode = error.response?.data?.error_code;
+    if (errorCode === 'PRODUCT_NOT_ENABLED' || errorCode === 'PRODUCT_NOT_SUPPORTED') {
+      responseMessage =
+        'Investments access is not enabled for this item. Please reconnect your account to grant consent.';
+    }
 
-    return res.status(status).json({ success: false, message });
+    return res.status(status).json({ success: false, message: responseMessage });
   }
 };

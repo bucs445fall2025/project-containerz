@@ -3,15 +3,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePlaidLink } from 'react-plaid-link';
 import { useAuth } from '../context/AuthContext.jsx';
-import { createLinkToken, fetchAccounts, fetchTransactions, setAccessToken } from '../api/plaid.js';
+import {
+  createLinkToken,
+  fetchAccounts,
+  fetchInvestments,
+  fetchTransactions,
+  setAccessToken
+} from '../api/plaid.js';
 import { sendVerificationCode, verifyVerificationCode } from '../api/auth.js';
 
 const DASHBOARD_TABS = [
   { key: 'balances', label: 'Account Balances' },
   { key: 'transactions', label: 'Transactions' },
-  { key: 'stocks', label: 'Stocks' },
+  { key: 'investments', label: 'Investments' },
   { key: 'analysis', label: 'Analysis' }
-
 ];
 
 const TRANSACTIONS_PER_PAGE = 10;
@@ -27,6 +32,10 @@ export default function DashboardPage() {
   const [transactionsError, setTransactionsError] = useState(null);
   const [transactionsInitialized, setTransactionsInitialized] = useState(false);
   const [transactionsPage, setTransactionsPage] = useState(1);
+  const [investmentData, setInvestmentData] = useState(null);
+  const [investmentsLoading, setInvestmentsLoading] = useState(false);
+  const [investmentsError, setInvestmentsError] = useState(null);
+  const [investmentsInitialized, setInvestmentsInitialized] = useState(false);
   const [linkWorking, setLinkWorking] = useState(false);
   const isVerified = Boolean(user?.verified);
   const [code, setCode] = useState('');
@@ -150,6 +159,55 @@ export default function DashboardPage() {
     }
   }, [token]);
 
+  const loadInvestments = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setInvestmentsLoading(true);
+    setInvestmentsError(null);
+    try {
+      const response = await fetchInvestments(token);
+      const candidate =
+        (response?.investments && typeof response.investments === 'object'
+          ? response.investments
+          : response?.investments_transactions) ?? null;
+
+      if (Array.isArray(candidate)) {
+        setInvestmentData({
+          accounts: [],
+          holdings: [],
+          investment_transactions: candidate,
+          securities: [],
+          as_of: null
+        });
+      } else if (candidate && typeof candidate === 'object') {
+        setInvestmentData({
+          ...candidate,
+          accounts: Array.isArray(candidate.accounts) ? candidate.accounts : [],
+          holdings: Array.isArray(candidate.holdings) ? candidate.holdings : [],
+          investment_transactions: Array.isArray(candidate.investment_transactions)
+            ? candidate.investment_transactions
+            : [],
+          securities: Array.isArray(candidate.securities) ? candidate.securities : [],
+          as_of: candidate.as_of ?? null
+        });
+      } else {
+        setInvestmentData({
+          accounts: [],
+          holdings: [],
+          investment_transactions: [],
+          securities: [],
+          as_of: null
+        });
+      }
+    } catch (err) {
+      console.error('Unable to load investments', err);
+      setInvestmentsError(err.message ?? 'Unable to load investments');
+    } finally {
+      setInvestmentsLoading(false);
+    }
+  }, [token]);
+
   const loadTransactions = useCallback(async () => {
     if (!token) {
       return;
@@ -183,6 +241,14 @@ export default function DashboardPage() {
   }, [activeTab, loadTransactions, token, transactionsInitialized]);
 
   useEffect(() => {
+    if (activeTab !== 'investments' || investmentsInitialized || !token) {
+      return;
+    }
+    setInvestmentsInitialized(true);
+    loadInvestments();
+  }, [activeTab, investmentsInitialized, loadInvestments, token]);
+
+  useEffect(() => {
     if (!token) {
       return;
     }
@@ -214,6 +280,7 @@ export default function DashboardPage() {
         try {
           await setAccessToken(token, publicToken);
           await loadAccounts();
+          setInvestmentsInitialized(false);
           setError(null);
           const response = await createLinkToken(token);
           setLinkToken(response.link_token);
@@ -289,6 +356,17 @@ export default function DashboardPage() {
 
   const hasAccounts = accounts.length > 0;
   const hasTransactions = transactions.length > 0;
+  const investmentAccounts = Array.isArray(investmentData?.accounts) ? investmentData.accounts : [];
+  const investmentHoldings = Array.isArray(investmentData?.holdings) ? investmentData.holdings : [];
+  const investmentTransactions = Array.isArray(investmentData?.investment_transactions)
+    ? investmentData.investment_transactions
+    : [];
+  const investmentSecurities = Array.isArray(investmentData?.securities)
+    ? investmentData.securities
+    : [];
+  const hasInvestmentAccounts = investmentAccounts.length > 0;
+  const hasInvestmentHoldings = investmentHoldings.length > 0;
+  const hasInvestmentTransactions = investmentTransactions.length > 0;
   const spendingBreakdownTotalCurrency =
     spendingBreakdown.categories[0]?.currency || 'USD';
   const showSpendingBreakdown =
@@ -342,8 +420,23 @@ export default function DashboardPage() {
         lookup.set(account.account_id, account);
       }
     });
+    investmentAccounts.forEach((account) => {
+      if (account?.account_id && !lookup.has(account.account_id)) {
+        lookup.set(account.account_id, account);
+      }
+    });
     return lookup;
-  }, [accounts]);
+  }, [accounts, investmentAccounts]);
+
+  const securitiesLookup = useMemo(() => {
+    const lookup = new Map();
+    investmentSecurities.forEach((security) => {
+      if (security?.security_id && !lookup.has(security.security_id)) {
+        lookup.set(security.security_id, security);
+      }
+    });
+    return lookup;
+  }, [investmentSecurities]);
 
   const getCurrencyCode = (account) =>
     account?.balances?.iso_currency_code || account?.balances?.unofficial_currency_code || 'USD';
@@ -367,6 +460,21 @@ export default function DashboardPage() {
   };
 
   const formatBalance = (value, account) => formatCurrency(value, getCurrencyCode(account));
+
+  const formatSignedCurrency = (value, currencyCode = 'USD') => {
+    if (value === null || value === undefined) {
+      return '—';
+    }
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return `${value}`;
+    }
+    if (numericValue === 0) {
+      return formatCurrency(0, currencyCode);
+    }
+    const formatted = formatCurrency(Math.abs(numericValue), currencyCode);
+    return `${numericValue > 0 ? '+' : '-'}${formatted}`;
+  };
 
   const getInstitutionName = (account) =>
     account?.institution?.name || account?.bank_name || account?.bankName || account?.name;
@@ -394,6 +502,31 @@ export default function DashboardPage() {
       .split('_')
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  };
+
+  const formatQuantity = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return '—';
+    }
+    if (Math.abs(numericValue) >= 1000) {
+      return numericValue.toLocaleString('en-US', {
+        maximumFractionDigits: 2
+      });
+    }
+    return numericValue.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 4
+    });
+  };
+
+  const formatPercentChange = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return null;
+    }
+    const percent = Math.abs(numericValue) <= 1 ? numericValue * 100 : numericValue;
+    return `${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%`;
   };
 
   const getTransactionCurrency = (transaction) =>
@@ -437,6 +570,41 @@ export default function DashboardPage() {
     }
     return formatted;
   };
+
+  const totalInvestmentValue = useMemo(
+    () =>
+      investmentAccounts.reduce((sum, account) => {
+        const amount = Number(account?.balances?.current);
+        return Number.isFinite(amount) ? sum + amount : sum;
+      }, 0),
+    [investmentAccounts]
+  );
+
+  const totalHoldingsValue = useMemo(
+    () =>
+      investmentHoldings.reduce((sum, holding) => {
+        const amount = Number(holding?.institution_value);
+        return Number.isFinite(amount) ? sum + amount : sum;
+      }, 0),
+    [investmentHoldings]
+  );
+
+  const displayedInvestmentTransactions = useMemo(
+    () => investmentTransactions.slice(0, 10),
+    [investmentTransactions]
+  );
+
+  const investmentSummaryCurrency =
+    investmentAccounts[0]?.balances?.iso_currency_code ||
+    investmentAccounts[0]?.balances?.unofficial_currency_code ||
+    investmentHoldings[0]?.iso_currency_code ||
+    investmentHoldings[0]?.unofficial_currency_code ||
+    'USD';
+
+  const holdingsSummaryCurrency =
+    investmentHoldings[0]?.iso_currency_code ||
+    investmentHoldings[0]?.unofficial_currency_code ||
+    investmentSummaryCurrency;
 
   return (
     <div className="dashboard">
@@ -685,7 +853,7 @@ export default function DashboardPage() {
                         const account = accountLookup.get(transaction.account_id);
                         const accountTitle = account ? getAccountTitle(account) : null;
                         const institutionName = account ? getInstitutionName(account) : null;
-                        const backgroundColor = transaction.personal_finance_category?.confidence_level === 'VERY_HIGH' ? "#faafaf" : "#fff";
+                        const backgroundColor = (transaction.personal_finance_category?.confidence_level === 'VERY_HIGH' || transaction.personal_finance_category?.primary === "FOOD_AND_DRINK" || transaction.personal_finance_category?.primary === "PERSONAL_CARE" || transaction.personal_finance_category?.primary === "ENTERTAINMENT") && transaction?.amount > 0 ? "#faafaf" : "#fff";
                         const accountLabel =
                           institutionName && accountTitle && institutionName !== accountTitle
                             ? `${institutionName} · ${accountTitle}`
@@ -695,7 +863,6 @@ export default function DashboardPage() {
                           : transaction.category?.length
                           ? transaction.category.join(' • ')
                           : '';
-                        const confidenceLevel = transaction.personal_finance_category?.confidence_level;
                         const amountText = formatTransactionAmount(transaction);
                         const isCredit = Number(transaction?.amount ?? 0) < 0;
                         const formattedDate = formatTransactionDate(transaction.date);
@@ -716,7 +883,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="transaction-meta">
                               {formattedDate && formattedDate !== '—' ? (
-                                <span className="transaction-meta-item">{formattedDate}</span>
+                                 <span className="transaction-meta-item">{formattedDate}</span>
                               ) : null}
                               {accountLabel ? (
                                 <span className="transaction-meta-item">{accountLabel}</span>
@@ -839,16 +1006,285 @@ export default function DashboardPage() {
             </section>
           ) : null}
 
-          {activeTab === 'stocks' ? (
+          {activeTab === 'investments' ? (
             <section
-              id="dashboard-panel-stocks"
+              id="dashboard-panel-investments"
               role="tabpanel"
-              aria-labelledby="dashboard-tab-stocks"
-              className="dashboard-panel dashboard-placeholder"
+              aria-labelledby="dashboard-tab-investments"
+              className="dashboard-panel"
             >
-              <h3>Stocks</h3>
-              <p>Track your stocks and investments in this tab.</p>
-              <p>We&apos;ll surface holdings after you link a brokerage account.</p>
+              <div className="dashboard-actions">
+                <button
+                  className="auth-button"
+                  type="button"
+                  onClick={loadInvestments}
+                  disabled={investmentsLoading}
+                >
+                  {investmentsLoading
+                    ? hasInvestmentAccounts
+                      ? 'Refreshing…'
+                      : 'Loading…'
+                    : 'Refresh investments'}
+                </button>
+              </div>
+
+              {investmentsError ? <p className="dashboard-error">{investmentsError}</p> : null}
+
+              {investmentsLoading && !hasInvestmentAccounts ? (
+                <p>Loading investment accounts…</p>
+              ) : null}
+
+              {hasInvestmentAccounts ? (
+                <section className="investment-section" aria-label="Investment accounts">
+                  <div className="investment-section-header">
+                    <h3>Investment accounts</h3>
+                    <span className="investment-section-total">
+                      {formatCurrency(totalInvestmentValue, investmentSummaryCurrency)}
+                    </span>
+                  </div>
+                  <div className="account-grid">
+                    {investmentAccounts.map((account, index) => {
+                      const institutionName = getInstitutionName(account);
+                      const accountTitle = getAccountTitle(account);
+                      const mask = account.mask ? `•••• ${account.mask}` : '';
+                      const accountType = formatAccountType(account);
+                      const logoSrc = getLogoSrc(account);
+                      const cashBalanceValue =
+                        account?.balances?.available ?? account?.balances?.cash ?? null;
+                      const accountKey =
+                        account.account_id ??
+                        `${account.name ?? 'investment'}-${account.mask ?? index}`;
+
+                      return (
+                        <article className="account-card" key={accountKey}>
+                          <div className="account-card-header">
+                            <div className="account-logo">
+                              {logoSrc ? (
+                                <img src={logoSrc} alt={`${institutionName || accountTitle} logo`} />
+                              ) : (
+                                <span>{getLogoInitial(account)}</span>
+                              )}
+                            </div>
+                            <div className="account-card-titles">
+                              <h3>{accountTitle}</h3>
+                              <p>
+                                {institutionName || 'Linked brokerage'}
+                                {mask ? ` · ${mask}` : ''}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="account-card-body">
+                            <div>
+                              <span className="account-metric-label">Account value</span>
+                              <span className="account-metric-value">
+                                {formatBalance(account.balances?.current, account)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="account-metric-label">Cash balance</span>
+                              <span className="account-metric-value">
+                                {formatBalance(cashBalanceValue, account)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {accountType ? (
+                            <div className="account-card-footer">
+                              <span className="account-tag">{accountType}</span>
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : !investmentsLoading ? (
+                <p>
+                  Connect a brokerage account to view investment balances and positions once they are
+                  available.
+                </p>
+              ) : null}
+
+              {hasInvestmentHoldings ? (
+                <section className="investment-section" aria-label="Current holdings">
+                  <div className="investment-section-header">
+                    <h3>Holdings overview</h3>
+                    <span className="investment-section-total">
+                      {formatCurrency(totalHoldingsValue, holdingsSummaryCurrency)}
+                    </span>
+                  </div>
+                  <div className="account-grid">
+                    {investmentHoldings.map((holding, index) => {
+                      const security = securitiesLookup.get(holding.security_id);
+                      const account = accountLookup.get(holding.account_id);
+                      const currencyCode =
+                        holding.iso_currency_code ||
+                        holding.unofficial_currency_code ||
+                        getCurrencyCode(account);
+                      const quantityText = formatQuantity(holding.quantity);
+                      const priceText = formatCurrency(holding.institution_price, currencyCode);
+                      const valueText = formatCurrency(holding.institution_value, currencyCode);
+                      const costBasisText =
+                        holding.cost_basis !== undefined && holding.cost_basis !== null
+                          ? formatCurrency(holding.cost_basis, currencyCode)
+                          : null;
+                      const gainText =
+                        holding.unrealized_gain !== undefined && holding.unrealized_gain !== null
+                          ? formatSignedCurrency(holding.unrealized_gain, currencyCode)
+                          : null;
+                      const gainPercentText = formatPercentChange(
+                        holding.unrealized_gain_percentage
+                      );
+                      const title = security?.name || security?.ticker_symbol || 'Holding';
+                      const identifierLabel =
+                        security?.ticker_symbol || security?.cusip || security?.isin || '';
+                      const holdingKey =
+                        holding.security_id ??
+                        `${title}-${holding.account_id ?? 'account'}-${index}`;
+                      const accountLabel = account ? getAccountTitle(account) : 'Investment account';
+                      const typeLabel = security?.type ? formatTextLabel(security.type) : null;
+
+                      return (
+                        <article className="account-card" key={holdingKey}>
+                          <div className="account-card-header">
+                            <div className="account-logo">
+                              <span>{identifierLabel ? identifierLabel.charAt(0) : 'S'}</span>
+                            </div>
+                            <div className="account-card-titles">
+                              <h3>{title}</h3>
+                              <p>
+                                {identifierLabel ? `${identifierLabel}` : ''}
+                                {identifierLabel && accountLabel ? ' · ' : ''}
+                                {accountLabel}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="account-card-body">
+                            <div>
+                              <span className="account-metric-label">Market value</span>
+                              <span className="account-metric-value">{valueText}</span>
+                            </div>
+                            <div>
+                              <span className="account-metric-label">Quantity</span>
+                              <span className="account-metric-value">{quantityText}</span>
+                            </div>
+                            <div>
+                              <span className="account-metric-label">Price</span>
+                              <span className="account-metric-value">{priceText}</span>
+                            </div>
+                          </div>
+                          <div className="account-card-body">
+                            <div>
+                              <span className="account-metric-label">Cost basis</span>
+                              <span className="account-metric-value">
+                                {costBasisText ?? '—'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="account-metric-label">Unrealized gain</span>
+                              <span className="account-metric-value">
+                                {gainText ?? '—'}
+                                {gainPercentText ? ` (${gainPercentText})` : ''}
+                              </span>
+                            </div>
+                          </div>
+                          {(typeLabel || security?.ticker_symbol) && (
+                            <div className="account-card-footer">
+                              {typeLabel ? <span className="account-tag">{typeLabel}</span> : null}
+                              {security?.ticker_symbol ? (
+                                <span className="account-tag">{security.ticker_symbol}</span>
+                              ) : null}
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : hasInvestmentAccounts && !investmentsLoading ? (
+                <p>Holdings data will appear once positions sync from your brokerage.</p>
+              ) : null}
+
+              {hasInvestmentTransactions ? (
+                <section
+                  className="investment-section"
+                  aria-label="Recent investment transactions"
+                >
+                  <div className="investment-section-header">
+                    <h3>Recent investment transactions</h3>
+                    <span className="investment-section-total">
+                      {investmentTransactions.length} transaction
+                      {investmentTransactions.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <div className="transaction-list" role="list">
+                    {displayedInvestmentTransactions.map((transaction) => {
+                      const security = securitiesLookup.get(transaction.security_id);
+                      const account = accountLookup.get(transaction.account_id);
+                      const currencyCode =
+                        transaction.iso_currency_code ||
+                        transaction.unofficial_currency_code ||
+                        getCurrencyCode(account);
+                      const amountValue = Number(transaction.amount ?? 0);
+                      const signedAmount = formatSignedCurrency(amountValue, currencyCode);
+                      const quantityText = formatQuantity(transaction.quantity);
+                      const priceText =
+                        transaction.price !== undefined && transaction.price !== null
+                          ? formatCurrency(transaction.price, currencyCode)
+                          : null;
+                      const feesText =
+                        transaction.fees !== undefined && transaction.fees !== null
+                          ? formatCurrency(transaction.fees, currencyCode)
+                          : null;
+                      const transactionType = transaction.type
+                        ? formatTextLabel(transaction.type)
+                        : null;
+                      const transactionSubtype = transaction.subtype
+                        ? formatTextLabel(transaction.subtype)
+                        : null;
+                      const securityLabel = security?.name || security?.ticker_symbol || 'Security';
+                      const accountLabel = account ? getAccountTitle(account) : 'Investment account';
+                      const dateText = formatTransactionDate(transaction.date);
+                      const transactionKey =
+                        transaction.investment_transaction_id ||
+                        `${transaction.account_id}-${transaction.security_id}-${transaction.date}`;
+
+                      return (
+                        <article className="transaction-item" role="listitem" key={transactionKey}>
+                          <div className="transaction-item-header">
+                            <h4 className="transaction-name">{securityLabel}</h4>
+                            <span className="transaction-amount">{signedAmount}</span>
+                          </div>
+                          <div className="transaction-meta">
+                            {dateText ? <span className="transaction-meta-item">{dateText}</span> : null}
+                            {transactionType ? (
+                              <span className="transaction-meta-item">{transactionType}</span>
+                            ) : null}
+                            {transactionSubtype ? (
+                              <span className="transaction-meta-item">{transactionSubtype}</span>
+                            ) : null}
+                            {accountLabel ? (
+                              <span className="transaction-meta-item">{accountLabel}</span>
+                            ) : null}
+                          </div>
+                          <div className="transaction-meta">
+                            <span className="transaction-meta-item">
+                              Qty {quantityText}
+                            </span>
+                            {priceText ? (
+                              <span className="transaction-meta-item">Price {priceText}</span>
+                            ) : null}
+                            {feesText ? (
+                              <span className="transaction-meta-item">Fees {feesText}</span>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
             </section>
           ) : null}
         </div>

@@ -19,3 +19,7 @@ export function fetchAccounts(token) {
 export function fetchTransactions(token) {
   return request('/plaid/transactions', { token });
 }
+
+export function fetchInvestments(token) {
+  return request('/plaid/investments', { token });
+}
