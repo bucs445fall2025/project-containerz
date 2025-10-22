@@ -1,3 +1,4 @@
+require('dotenv').config();
 const b64 = process.env.ENCRYPTION_KEY_BASE64;
 if (!b64) throw new Error("ENCRYPTION_KEY_BASE64 is missing");
 
