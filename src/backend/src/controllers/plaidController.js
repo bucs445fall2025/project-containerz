@@ -1,8 +1,7 @@
-// src/controllers/plaidController.js
 const User = require('../models/User.js');
 const { plaidClient, getProducts, getCountryCodes } = require('../services/plaid.js');
 
-/** Convenience: select the encrypted Plaid blobs so virtuals can decrypt */
+// Convenience: select the encrypted Plaid blobs so virtuals can decrypt
 const SELECT_PLAID_ENC = [
   '+plaidAccessTokenEnc',
   '+plaidItemIdEnc',
@@ -15,7 +14,7 @@ function getRedirectUri() {
   return process.env.PLAID_REDIRECT_URI || undefined;
 }
 
-/** Safely clear all Plaid auth + cached data using virtuals (encryption-aware) */
+// Safely clear all Plaid auth + cached data using virtuals (encryption-aware)
 async function clearPlaidFields(userId, { clearInvestments = true, clearTransactions = true } = {}) {
   const user = await User.findById(userId).select(SELECT_PLAID_ENC);
   if (!user) return;
@@ -188,7 +187,7 @@ exports.getTransactions = async (req, res) => {
 
     const user = await User.findById(req.user.id).select(
       [
-        '+plaidTransactionsEnc', // to read/write cached txns
+        '+plaidTransactionsEnc', // to read/write cached transactions
         '+plaidAccessTokenEnc',
         '+plaidItemIdEnc',
         '+plaidCursorEnc',
@@ -334,7 +333,7 @@ exports.getInvestments = async (req, res) => {
       });
     }
 
-    // Ensure the item actually has investments consent
+    // Ensure item actually has investments consent
     const itemResponse = await plaidClient.itemGet({ access_token: user.plaidAccessToken });
     const billedProducts =
       itemResponse.data?.item?.billed_products ??

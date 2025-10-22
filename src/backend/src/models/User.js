@@ -51,7 +51,7 @@ const UserSchema = new mongoose.Schema({
   toObject: { virtuals: true },
 });
 
-// ---- Virtuals for plaintext access (auto-decrypt on read, auto-encrypt on write)
+// Virtuals for plaintext access (auto-decrypt on read, auto-encrypt on write)
 
 function safeDecrypt(blob, fallback = null) {
   try {
