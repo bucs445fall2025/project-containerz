@@ -1,4 +1,12 @@
 const mongoose = require('mongoose');
+const { encryptBlob, decryptBlob } = require('../utils/crypto.js');
+
+const EncryptedBlobSchema = new mongoose.Schema({
+    keyId: { type: String, required: true },
+    iv: { type: String, required: true },
+    tag: { type: String, required: true },
+    ct:  { type: String, required: true },
+}, { _id: false });
 
 const UserSchema = mongoose.Schema({
     name: {
@@ -54,18 +62,27 @@ const UserSchema = mongoose.Schema({
         select: false, 
         default: null 
     },
-    plaidTransactions: {
-        type: [mongoose.Schema.Types.Mixed],
-        select: false,
-        default: []
-    },
-    plaidInvestments: {
-        type: [mongoose.Schema.Types.Mixed],
-        select: false,
-        default: []
-    }
+    plaidTransactionsEnc: { type: EncryptedBlobSchema, select: false },
+    plaidInvestmentsEnc: { type: EncryptedBlobSchema, select: false },
 },{
-    timestamps: true
-})
+    timestamps: true,
+    toJSON:{virtuals:true},
+    toObject:{virtuals:true}
+});
+
+
+UserSchema.virtual('plaidTransactions')
+  .get(function () { return decryptBlob(this.plaidTransactionsEnc) || []; })
+  .set(function (val)   { this.plaidTransactionsEnc = encryptBlob(val ?? []); });
+
+UserSchema.virtual('plaidInvestments')
+  .get(function () { return decryptBlob(this.plaidInvestmentsEnc) || []; })
+  .set(function (val)   { this.plaidInvestmentsEnc = encryptBlob(val ?? []); });
+
+
+UserSchema.pre('save', function(next){
+    if (this.isModified('plaidTransactionsEnc')) return next();
+    next();
+});
 
 module.exports = mongoose.model('User', UserSchema);
