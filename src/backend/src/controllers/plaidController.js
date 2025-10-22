@@ -186,7 +186,7 @@ exports.getTransactions = async (req, res) => {
   try {
     const MAX_TRANSACTIONS = 200;
     const user = await User.findById(req.user.id).select(
-      '+plaidAccessToken +plaidItemId +plaidCursor +plaidTransactions'
+      '+plaidAccessToken +plaidItemId +plaidCursor +plaidTransactionsEnc'
     );
 
     if (!user) {
@@ -302,10 +302,15 @@ exports.getTransactions = async (req, res) => {
     const status = error.response?.status || 500;
     const message = error.response?.data?.error_message || error.message;
 
+    // if (status === 400 || status === 401) {
+    //   await User.findByIdAndUpdate(req.user.id, {
+    //     $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1 },
+    //     $set: { plaidTransactions: [] }
+    //   });
+    // }
     if (status === 400 || status === 401) {
       await User.findByIdAndUpdate(req.user.id, {
-        $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1 },
-        $set: { plaidTransactions: [] }
+        $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1, plaidTransactionsEnc: 1 }
       });
     }
 
@@ -316,7 +321,7 @@ exports.getTransactions = async (req, res) => {
 exports.getInvestments = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select(
-      '+plaidAccessToken +plaidItemId +plaidInvestments'
+      '+plaidAccessToken +plaidItemId +plaidInvestmentsEnc'
     );
 
     if (!user) {
@@ -371,9 +376,11 @@ exports.getInvestments = async (req, res) => {
     const investmentTransactionsResponse = await plaidClient.investmentsTransactionsGet(configs);
     const investmentsData = investmentTransactionsResponse.data.investment_transactions || [];
 
-    await User.findByIdAndUpdate(req.user.id, {
-      $set: { plaidInvestments: investmentsData }
-    });
+    // await User.findByIdAndUpdate(req.user.id, {
+    //   $set: { plaidInvestments: investmentsData }
+    // });
+    user.plaidInvestments = investmentsData;
+    await user.save();
 
     const holdingsData = Array.isArray(holdingsResponse.data?.holdings)
       ? holdingsResponse.data.holdings
@@ -431,10 +438,15 @@ exports.getInvestments = async (req, res) => {
 
     if (status === 400 || status === 401 || status === 403) {
       await User.findByIdAndUpdate(req.user.id, {
-        $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1 },
-        $set: { plaidInvestments: [] }
+        $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1, plaidInvestmentsEnc: 1 }
       });
     }
+    // if (status === 400 || status === 401 || status === 403) {
+    //   await User.findByIdAndUpdate(req.user.id, {
+    //     $unset: { plaidAccessToken: 1, plaidItemId: 1, plaidCursor: 1 },
+    //     $set: { plaidInvestments: [] }
+    //   });
+    // }
     let responseMessage = message;
     const errorCode = error.response?.data?.error_code;
     if (errorCode === 'PRODUCT_NOT_ENABLED' || errorCode === 'PRODUCT_NOT_SUPPORTED') {
