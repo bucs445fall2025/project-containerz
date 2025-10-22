@@ -1,0 +1,64 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: fin-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    environment:
+      MONGO_INITDB_DATABASE: fin_tool
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    # container_name: backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongo:27017/fin_tool
+      PORT: "3000"         #
+      TOKEN_SECRET: dev-secret-key
+    ports:
+      - "8081:3000"        
+    depends_on:
+      mongo:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    container_name: fin-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://localhost:8080/api
+    ports:
+      - "5173:5173"        
+    depends_on:
+      - backend
+
+  nginx:
+    build: ./nginx
+    container_name: fin-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"         
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  mongo_data:
+  backend_node_modules:
