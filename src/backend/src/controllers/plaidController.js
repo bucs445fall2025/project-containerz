@@ -264,6 +264,19 @@ exports.getTransactions = async (req, res) => {
     });
 
     const combinedTransactions = Array.from(transactionMap.values()).sort(compareDesc);
+
+    combinedTransactions.forEach(transaction => {
+      const primary = transaction.personal_finance_category?.primary;
+      const confidence = transaction.personal_finance_category?.confidence_level;
+      const amount = transaction?.amount;
+      const highlightCategories = new Set(['FOOD_AND_DRINK', 'PERSONAL_CARE', 'ENTERTAINMENT']);
+      if ((confidence === 'VERY_HIGH' || highlightCategories.has(primary)) && Number(amount) > 0) {
+        transaction['unnecessary'] = true;
+      } else {
+        transaction['unnecessary'] = false;
+      };
+    });
+
     const limitedTransactions = combinedTransactions.slice(0, MAX_TRANSACTIONS);
 
     const storedJson = JSON.stringify(storedTransactions);
