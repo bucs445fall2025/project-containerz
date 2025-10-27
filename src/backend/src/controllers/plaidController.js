@@ -276,7 +276,7 @@ exports.getTransactions = async (req, res) => {
         transaction['unnecessary'] = false;
       };
     });
-
+    
     const limitedTransactions = combinedTransactions.slice(0, MAX_TRANSACTIONS);
 
     const storedJson = JSON.stringify(storedTransactions);
