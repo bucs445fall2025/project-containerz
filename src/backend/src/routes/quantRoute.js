@@ -1,6 +1,8 @@
 const router = require('express').Router();
-const { priceCallOption } = require('../controllers/quantController.js');
+const quantController = require('../controllers/quantController.js');
 
-router.post('/mc/call', priceCallOption);
+router.post('/mc/call', quantController.priceCallOption);
+router.post('/mc/asset', quantController.simAsset);
+router.post('/mc/portfolio', quantController.simPortfolio);
 
 module.exports = router;
