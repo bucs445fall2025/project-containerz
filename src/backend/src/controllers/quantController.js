@@ -63,6 +63,8 @@ exports.simPortfolio = async (req,res) => {
     try {
         // implement here; similar to priceCallOption
 
+        const { data } = await axios.post(`${AI_URL}/simulate`, req.body, { timeout: 10_000 });
+
         // expected output
         // return res.status(200).json({
         //     success: true,
