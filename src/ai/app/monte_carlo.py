@@ -22,3 +22,14 @@ def price_european_call_spot_mc(
     return price, stderr
 
 # add single asset simulation, and simulate portfolio functions here
+
+def gbmPortfolio(
+    assets: list[json], weights: list[float], T: int, r: int, n_steps: int, n_paths: int, seed: int | None = None
+):
+    """
+    GBM, MonteCarlo for portfolio
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    
+    # return portfolioFinalValues, meanFinalValue, stdFinalValue, portfolioVar95, portfolioCvar95, params
