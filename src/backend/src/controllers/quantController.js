@@ -3,6 +3,23 @@ const User = require('../models/User.js');
 const { decryptBlob } = require('../utils/crypto.js');
 const AI_URL = process.env.AI_URL || 'http://localhost:8001';
 
+function findSec(secs, secID) { // finds and returns cleaner data from sec
+    for (const obj of secs) {
+        if (obj.security_id == secID) {
+            return { name: obj.name, ticker_symbol: obj.ticker_symbol, security_id: obj.security_id, close_price: obj.close_price,  };
+        }
+    }
+    return {};
+}
+
+function combineHoldsAndSecs(holds, secs) {
+    return holds.map(hold => {
+        const sec = findSec(secs, hold.security_id);
+        return { quantity: hold.quantity, institution_price: hold.institution_price, ...sec };
+    });
+}
+
+
 exports.priceCallOption = async (req, res) => {
     try {
         // Expect body: { S0, K, T, r, sigma, n_paths, seed }
@@ -53,7 +70,7 @@ exports.simPortfolio = async (req,res) => {
     /**
      * Expected Body: {
      *   assets: [{ name: "AAPL", S0: number, mu: number, sigma: number }, ...],
-     *   weights: number[], // must sum to 1, same length as assets
+     *   weights: number[], // must sum to 1, same length as assets; weight = (quantity × S0) / total_value
      *   T: number, // years (e.g., 1)
      *   r: number, // risk-free, decimal (e.g., 0.04)
      *   n_steps: number, // e.g., 252
@@ -70,16 +87,13 @@ exports.simPortfolio = async (req,res) => {
 
         let plaidHoldings = decryptBlob(existingUser.plaidHoldingsEnc);
         let plaidSecurities = decryptBlob(existingUser.plaidSecuritiesEnc);
-        // console.log(plaidHoldings);
-        // console.log(plaidSecurities);
-        // console.log("plaidSecurities: ", typeof plaidSecurities);
-        // console.log("plaidHoldings: ", typeof plaidHoldings);
-        // console.log(Object.keys(plaidHoldings));
-        // console.log(Object.keys(plaidSecurities));
-        console.log(plaidHoldings[0]);
-        console.log(plaidSecurities[0]);
-        // console.log("holdings: ", plaidHoldings);
-        // console.log("securities: ", plaidSecurities);
+
+        // console.log(plaidHoldings[0]);
+        // console.log(plaidSecurities[0]);
+
+        const cleanedData = combineHoldsAndSecs(plaidHoldings, plaidSecurities);
+
+        console.log(cleanedData);
 
         return res.status(200);
 
