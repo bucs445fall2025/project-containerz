@@ -1,5 +1,6 @@
 const axios = require('axios');
-
+const User = require('../models/User.js');
+const { decryptBlob } = require('../utils/crypto.js');
 const AI_URL = process.env.AI_URL || 'http://localhost:8001';
 
 exports.priceCallOption = async (req, res) => {
@@ -62,8 +63,27 @@ exports.simPortfolio = async (req,res) => {
      */
     try {
         // implement here; similar to priceCallOption
+        const existingUser = await User.findById(req.user.id).select('+plaidInvestmentsEnc').lean();
+        if (!existingUser) { 
+            return res.status(404).json({ success: false, message: "user not found" });
+        }
 
-        const { data } = await axios.post(`${AI_URL}/simulate`, req.body, { timeout: 10_000 });
+        let plaidInvestments = decryptBlob(existingUser.plaidInvestmentsEnc);
+
+        // plaidInvestments = JSON.parse(plaidInvestments);
+        console.log("plaidInvestments: ", typeof plaidInvestments);
+        console.log(Object.keys(plaidInvestments));
+        console.log(plaidInvestments[0]);
+
+        let holdings = plaidInvestments.holdings;
+        let securities = plaidInvestments.securities;
+
+        console.log("holdings: ", holdings);
+        console.log("securities: ", securities);
+
+        return res.status(200);
+
+        const { data } = await axios.post(`${AI_URL}/sim/portfolio`, req.body, { timeout: 10_000 });
 
         // expected output
         // return res.status(200).json({
