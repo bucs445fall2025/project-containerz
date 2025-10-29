@@ -63,23 +63,23 @@ exports.simPortfolio = async (req,res) => {
      */
     try {
         // implement here; similar to priceCallOption
-        const existingUser = await User.findById(req.user.id).select('+plaidInvestmentsEnc').lean();
+        const existingUser = await User.findById(req.user.id).select('+plaidHoldingsEnc +plaidSecuritiesEnc').lean();
         if (!existingUser) { 
             return res.status(404).json({ success: false, message: "user not found" });
         }
 
-        let plaidInvestments = decryptBlob(existingUser.plaidInvestmentsEnc);
-
-        // plaidInvestments = JSON.parse(plaidInvestments);
-        console.log("plaidInvestments: ", typeof plaidInvestments);
-        console.log(Object.keys(plaidInvestments));
-        console.log(plaidInvestments[0]);
-
-        let holdings = plaidInvestments.holdings;
-        let securities = plaidInvestments.securities;
-
-        console.log("holdings: ", holdings);
-        console.log("securities: ", securities);
+        let plaidHoldings = decryptBlob(existingUser.plaidHoldingsEnc);
+        let plaidSecurities = decryptBlob(existingUser.plaidSecuritiesEnc);
+        // console.log(plaidHoldings);
+        // console.log(plaidSecurities);
+        // console.log("plaidSecurities: ", typeof plaidSecurities);
+        // console.log("plaidHoldings: ", typeof plaidHoldings);
+        // console.log(Object.keys(plaidHoldings));
+        // console.log(Object.keys(plaidSecurities));
+        console.log(plaidHoldings[0]);
+        console.log(plaidSecurities[0]);
+        // console.log("holdings: ", plaidHoldings);
+        // console.log("securities: ", plaidSecurities);
 
         return res.status(200);
 
