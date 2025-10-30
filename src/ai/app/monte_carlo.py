@@ -2,40 +2,8 @@ from typing import List, Optional, Dict, Any, Tuple
 import numpy as np
 import yfinance as yf
 
-def price_european_call_spot_mc(
-    S0: float, K: float, T: float, r: float, sigma: float, n_paths: int = 10000, seed: int | None = None
-):
-    """
-    Black–Scholes under GBM; Monte Carlo pricing for a European call.
-    Returns (price, std_error).
-    """
-    if seed is not None:
-        np.random.seed(seed)
-
-    # draw standard normals for terminal simulation
-    Z = np.random.randn(n_paths)
-    # Geometric Brownian Motion terminal price
-    ST = S0 * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
-    payoff = np.maximum(ST - K, 0.0)
-    disc_payoff = np.exp(-r * T) * payoff
-
-    price = disc_payoff.mean()
-    stderr = disc_payoff.std(ddof=1) / np.sqrt(n_paths)
-    return price, stderr
-
-# add single asset simulation, and simulate portfolio functions here
-
-def gbmPortfolio(
-    assets: list[Assets], weights: list[float], T: int, r: int, n_steps: int, n_paths: int, seed: int | None = None
-):
-    """
-    GBM, MonteCarlo for portfolio
-    might have to just securities, cause they have the tickers
-    Assets need to have ticker symbols
-    need to remove the weights for non existing assets. i think i can do this in main.py
-    """
-
-    def check_ticker(symbol):
+# ---- helpers ---- 
+def check_ticker(symbol):
         """
         Checks if a ticker symbol exists using yfinance.
 
@@ -58,9 +26,51 @@ def gbmPortfolio(
         except Exception as e:
             print(f"An error occurred for '{symbol}': {e}")
             return False
-    
+
+def stock_pricing(symbol):
+        ticker = yf.Ticker(symbol)
+        latest = ticker.history(period="1d") # gets latest prices
+        return latest['Close'].iloc[-1]
+
+
+# ---- simulation ---- 
+
+#example
+def price_european_call_spot_mc(
+    S0: float, K: float, T: float, r: float, sigma: float, n_paths: int = 10000, seed: int | None = None
+):
+    """
+    Black–Scholes under GBM; Monte Carlo pricing for a European call.
+    Returns (price, std_error).
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    # draw standard normals for terminal simulation
+    Z = np.random.randn(n_paths)
+    # Geometric Brownian Motion terminal price
+    ST = S0 * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
+    payoff = np.maximum(ST - K, 0.0)
+    disc_payoff = np.exp(-r * T) * payoff
+
+    price = disc_payoff.mean()
+    stderr = disc_payoff.std(ddof=1) / np.sqrt(n_paths)
+    return price, stderr
+
+
+# add single asset simulation, and simulate portfolio functions here
+
+def gbmPortfolio(
+    assets: list[Assets], weights: list[float], T: int, r: int, n_steps: int, n_paths: int, seed: int | None = None
+):
+    """
+    GBM, MonteCarlo for portfolio
+    might have to just securities, cause they have the tickers
+    Assets need to have ticker symbols
+    need to remove the weights for non existing assets. i think i can do this in main.py
+    """
     existing_assets = []
-    for t in assets:
+    for t in assets: # adds only real assets
         exists = check_ticker(t)
         if exists:
             existing_assets.append(t)
@@ -69,16 +79,10 @@ def gbmPortfolio(
     
     n_assets = len(existing_assets) 
 
-    def stock_pricing(symbol):
-        ticker = yf.Ticker(symbol)
-        latest = ticker.history(period="1d") # gets latest prices
-        return latest['Close'].iloc[-1]
-
     S0 = np.array([stock_pricing(t) for t in existing_assets])
-
-    T = 1  # 1 year
-    N = 252  # trading days
-    dt = T / N
+    # T = 1  # 1 year
+    # N = 252  # trading days; N = n_paths
+    dt = T / n_paths
     
     # Portfolio weights (sum to 1)
 
