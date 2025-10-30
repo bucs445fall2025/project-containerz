@@ -91,13 +91,21 @@ exports.simPortfolio = async (req,res) => {
         // console.log(plaidHoldings[0]);
         // console.log(plaidSecurities[0]);
 
-        const cleanedData = combineHoldsAndSecs(plaidHoldings, plaidSecurities);
+        const assets = combineHoldsAndSecs(plaidHoldings, plaidSecurities); // this would be assets
+        const weights = []; //  // must sum to 1, same length as assets; weight = (quantity × S0) / total_value
+        const T = 1; // time horizon - 1 year
+        const r = 0.04; // risk - rate
+        const n_steps = 252; // e.g., 252
+        const n_paths = 10000; // e.g., 10000
+
+
 
         console.log(cleanedData);
 
-        return res.status(200);
+        // make data into expected body before passing it in
+        const { data } = await axios.post(`${AI_URL}/sim/portfolio`, cleanedData, { timeout: 10_000 });
 
-        const { data } = await axios.post(`${AI_URL}/sim/portfolio`, req.body, { timeout: 10_000 });
+        return res.status(200).json({success: true, message:"yuyp"});
 
         // expected output
         // return res.status(200).json({
