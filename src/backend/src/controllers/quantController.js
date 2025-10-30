@@ -3,20 +3,71 @@ const User = require('../models/User.js');
 const { decryptBlob } = require('../utils/crypto.js');
 const AI_URL = process.env.AI_URL || 'http://localhost:8001';
 
-function findSec(secs, secID) { // finds and returns cleaner data from sec
-    for (const obj of secs) {
-        if (obj.security_id == secID) {
-            return { name: obj.name, ticker_symbol: obj.ticker_symbol, security_id: obj.security_id, close_price: obj.close_price,  };
-        }
-    }
-    return {};
-}
+// function findSec(secs, secID) { // finds and returns cleaner data from sec
+//     for (const obj of secs) {
+//         if (obj.security_id == secID) {
+//             return { name: obj.name, ticker_symbol: obj.ticker_symbol, security_id: obj.security_id, close_price: obj.close_price,  };
+//         }
+//     }
+//     return {};
+// }
 
-function combineHoldsAndSecs(holds, secs) {
-    return holds.map(hold => {
-        const sec = findSec(secs, hold.security_id);
-        return { quantity: hold.quantity, institution_price: hold.institution_price, ...sec };
-    });
+function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'CASH' } = {}) {
+    const secById = new Map(secs.map(s => [s.security_id, s]));
+
+    const rows = [];
+    for (const h of holds) {
+        const s = secById.get(h.security_id);
+        if (!s) continue;
+
+        const rawS0 = (h.institution_price ?? s.close_price ?? s.close_price_as_of ?? null);
+        const S0 = Number(rawS0);
+        const quantity = Number(h.quantity);
+
+        if (!Number.isFinite(S0) || S0 <= 0) continue;
+        if (!Number.isFinite(quantity) || quantity <= 0) continue;
+
+        let ticker = s.ticker_symbol || null;
+
+        if (!ticker) {
+            if (!includeCash) continue; 
+            ticker = cashTicker;
+        }
+
+        const name = s.name || ticker || 'Unknown';
+
+        rows.push({
+            name,
+            ticker,
+            S0,
+            quantity,
+            mu: 0.08,
+            sigma: ticker === cashTicker ? 0.0001 : 0.20,
+        });
+    }
+
+    if (rows.length === 0) {
+        return { assets: [], weights: [], initialValue: 0 };
+    }
+
+    const numerators = rows.map(r => r.quantity * r.S0);
+    const total = numerators.reduce((a, b) => a + b, 0);
+
+    if (!Number.isFinite(total) || total <= 0) {
+        return { assets: [], weights: [], initialValue: 0 };
+    }
+
+    const weights = numerators.map(v => v / total);
+
+    const assets = rows.map(({ name, ticker, S0, mu, sigma }) => ({
+        name, ticker, S0, mu, sigma
+    }));
+
+    return {
+        assets,
+        weights,
+        initialValue: total
+    };
 }
 
 
@@ -85,27 +136,32 @@ exports.simPortfolio = async (req,res) => {
             return res.status(404).json({ success: false, message: "user not found" });
         }
 
-        let plaidHoldings = decryptBlob(existingUser.plaidHoldingsEnc);
-        let plaidSecurities = decryptBlob(existingUser.plaidSecuritiesEnc);
+        let plaidHoldings = decryptBlob(existingUser.plaidHoldingsEnc) || [];
+        let plaidSecurities = decryptBlob(existingUser.plaidSecuritiesEnc) || [];
 
         // console.log(plaidHoldings[0]);
         // console.log(plaidSecurities[0]);
 
-        const assets = combineHoldsAndSecs(plaidHoldings, plaidSecurities); // this would be assets
-        const weights = []; //  // must sum to 1, same length as assets; weight = (quantity × S0) / total_value
-        const T = 1; // time horizon - 1 year
-        const r = 0.04; // risk - rate
-        const n_steps = 252; // e.g., 252
-        const n_paths = 10000; // e.g., 10000
-
-
-
-        console.log(cleanedData);
+        const { assets, weights, initialValue } = combineHoldsAndSecs(plaidHoldings, plaidSecurities); 
+        const T = req.body?.T ?? 1;
+        const r = req.body?.r ?? 0.04;
+        const n_steps = req.body?.n_steps ?? 252;
+        const n_paths = req.body?.n_paths ?? 10000;
+        const seed = req.body?.seed ?? null;
 
         // make data into expected body before passing it in
-        const { data } = await axios.post(`${AI_URL}/sim/portfolio`, cleanedData, { timeout: 10_000 });
+        const payload = {
+            assets, weights,
+            T, r,
+            n_steps, n_paths,
+            seed, return_paths: false
+        }
 
-        return res.status(200).json({success: true, message:"yuyp"});
+        console.log(payload)
+
+        const { data } = await axios.post(`${AI_URL}/sim/portfolio`, payload, { timeout: 10_000 });
+
+        return res.status(200).json({success: true, message: "Portfolio Simulation Complete", data});
 
         // expected output
         // return res.status(200).json({
