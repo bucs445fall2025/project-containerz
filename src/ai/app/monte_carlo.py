@@ -32,6 +32,22 @@ def stock_pricing(symbol):
         latest = ticker.history(period="1d") # gets latest prices
         return latest['Close'].iloc[-1]
 
+def _validate_corr(corr: Optional[List[List[float]]], n_assets: int) -> np.ndarray:
+    if corr is None:
+        return np.eye(n_assets)
+    C = np.array(corr, dtype=float)
+    if C.shape != (n_assets, n_assets):
+        raise ValueError("corr must be n_assets x n_assets")
+
+    C = 0.5 * (C + C.T)
+    np.fill_diagonal(C, 1.0)
+
+    try:
+        np.linalg.cholesky(C)
+    except np.linalg.LinAlgError:
+        raise ValueError("corr matrix must be positive semi-definite")
+    return C
+
 
 # ---- simulation ---- 
 
@@ -60,62 +76,74 @@ def price_european_call_spot_mc(
 
 # add single asset simulation, and simulate portfolio functions here
 
-def gbmPortfolio(
-    assets: list[Assets], weights: list[float], T: int, r: int, n_steps: int, n_paths: int, seed: int | None = None
-):
+def gbm_portfolio(
+    assets: List[Dict[str, Any]], weights: List[float], T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None, corr: Optional[List[List[float]]] = None
+) -> Tuple[List[float], float, float, float, float, float, Dict[str, Any]]:
     """
     GBM, MonteCarlo for portfolio
     might have to just securities, cause they have the tickers
     Assets need to have ticker symbols
     need to remove the weights for non existing assets. i think i can do this in main.py
     """
-    existing_assets = []
-    for t in assets: # adds only real assets
-        exists = check_ticker(t)
-        if exists:
-            existing_assets.append(t)
-        else:
-            continue
+    # simple checks
+    n_assets = len(assets)
+    if n_assets == 0:
+        raise ValueError("no assets provided")
+    if len(weights) != n_assets:
+        raise ValueError("weights length mismatch")
+
+    w = np.array(weights, dtype=float)
+    sw = w.sum()
+    if sw <= 0:
+        raise ValueError("weights must sum > 0")
+    if not (0.999 <= sw <= 1.001):
+        w = w / sw 
+
+    # initializations
+    S0 = np.array([float(a["S0"]) for a in assets], dtype=float)
+    mu = np.array([float(a["mu"]) for a in assets], dtype=float)
+    sig = np.array([float(a["sigma"]) for a in assets], dtype=float)
+    if np.any(S0 <= 0) or np.any(sig <= 0):
+        raise ValueError("S0 and sigma must be > 0 for all assets")
     
-    n_assets = len(existing_assets) 
+    # correlation matrix stuff
+    C = _validate_corr(corr, n_assets)
+    L = np.linalg.cholesky(C)
 
-    S0 = np.array([stock_pricing(t) for t in existing_assets])
-    # T = 1  # 1 year
-    # N = 252  # trading days; N = n_paths
-    dt = T / n_paths
-    
-    # Portfolio weights (sum to 1)
+    dt = T / n_steps
+    rng = np.random.default_rng(seed)
 
-    # Annual drift and volatility
-    # mu = np.array([0.08, 0.12, 0.10])
-    # sigma = np.array([0.15, 0.20, 0.18])
+    # Z: (n_paths, n_steps, n_assets)
+    Z = rng.standard_normal(size=(n_paths, n_steps, n_assets))
+    Zc = Z @ L.T 
 
-    mu = np.array([]) # rangomize this 
-    sigma = mu # set it equal to mu for now
+    drift = (mu - 0.5 * sig**2) * dt
+    diff = sig * np.sqrt(dt)
 
-    M = 10000  # simulations
+    # log ST = log S0 + sum_t (drift + diff * Zc)
+    inc = drift + diff * Zc
+    log_ST = np.log(S0)[None, None, :] + inc.cumsum(axis=1)
+    ST = np.exp(log_ST[:, -1, :])
 
-    # Initialize price paths
-    price_paths = np.zeros((M, N + 1, n_assets))
-    price_paths[:, 0, :] = S0
+    V0 = float(np.sum(w * S0))
+    VT = np.sum(w[None, :] * ST, axis=1) 
 
-    # Simulate GBM with correlated shocks
-    for m in range(M):
-        Z = np.random.normal(size=(N, n_assets))
-        correlated_Z = Z @ L.T
-        for t in range(1, N + 1):
-            price_paths[m, t, :] = price_paths[m, t - 1, :] * np.exp(
-                (mu - 0.5 * sigma**2) * dt + np.sqrt(dt) * correlated_Z[t - 1]
-            )
+    finals = VT.tolist()
+    mean_val = float(VT.mean())
+    std_val = float(VT.std(ddof=1))
 
-    # Compute weighted portfolio value per simulation & timestep
-    portfolio_values = np.sum(price_paths * weights, axis=2)  # shape (M, N+1)
+    R = (VT / V0) - 1.0
+    exp_ret = float(R.mean())
+    var95 = float(np.quantile(R, 0.05)) # 5% quantile
+    cvar95 = float(R[R <= var95].mean()) 
 
-    # Scale portfolio so initial value = 100,000
-    initial_portfolio_value = np.sum(S0 * weights)
-    scale_factor = 100000 / initial_portfolio_value
-    portfolio_values *= scale_factor
+    params = {
+        "n_assets": n_assets,
+        "has_corr": corr is not None,
+        "V0": V0,
+        "dt": dt,
+        "mu": mu.tolist(),
+        "sigma": sig.tolist(),
+    }
 
-
-    
-    # return portfolioFinalValues, meanFinalValue, stdFinalValue, portfolioVar95, portfolioCvar95, params
+    return finals, mean_val, std_val, exp_ret, var95, cvar95, params
