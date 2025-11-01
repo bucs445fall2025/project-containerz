@@ -161,7 +161,19 @@ exports.simPortfolio = async (req,res) => {
 
         const { data } = await axios.post(`${AI_URL}/sim/portfolio`, payload, { timeout: 10_000 });
 
-        return res.status(200).json({success: true, message: "Portfolio Simulation Complete", data});
+        return res.status(200).json({
+            success: true, 
+            message: "Portfolio Simulation Complete", 
+            data,
+            params: {
+                r,
+                n_steps,
+                n_paths,
+                weights,
+                seed, 
+                corr_matrix_present: false
+            }
+        });
 
         // expected output
         // return res.status(200).json({
