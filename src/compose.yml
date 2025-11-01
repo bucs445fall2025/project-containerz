@@ -21,6 +21,7 @@ services:
       MONGODB_URI: mongodb://mongo:27017/fin_tool
       PORT: "3000" 
       TOKEN_SECRET: dev-secret-key
+      AI_URL: http://aimodel:8001  
     ports:
       - "8081:3000"        
     volumes:
