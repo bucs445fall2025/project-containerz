@@ -1,16 +1,7 @@
 const axios = require('axios');
 const User = require('../models/User.js');
 const { decryptBlob } = require('../utils/crypto.js');
-const AI_URL = process.env.AI_URL || 'http://localhost:8001';
-
-// function findSec(secs, secID) { // finds and returns cleaner data from sec
-//     for (const obj of secs) {
-//         if (obj.security_id == secID) {
-//             return { name: obj.name, ticker_symbol: obj.ticker_symbol, security_id: obj.security_id, close_price: obj.close_price,  };
-//         }
-//     }
-//     return {};
-// }
+const PYTHON_SERVICE = process.env.PYTHON_SERVICE || 'http://pythonservice:8001';
 
 function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'CASH' } = {}) {
     const secById = new Map(secs.map(s => [s.security_id, s]));
@@ -74,10 +65,10 @@ function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'C
 exports.priceCallOption = async (req, res) => {
     try {
         // Expect body: { S0, K, T, r, sigma, n_paths, seed }
-        const { data } = await axios.post(`${AI_URL}/simulate`, req.body, { timeout: 10_000 });
+        const { data } = await axios.post(`${PYTHON_SERVICE}/simulate`, req.body, { timeout: 10_000 });
         return res.json({ success: true, ...data });
     } catch (err) {
-        console.error('AI simulate error:', err.message);
+        console.error('python simulate error:', err.message);
         return res.status(502).json({ success: false, message: 'AI service unavailable' });
   }
 };
@@ -118,6 +109,7 @@ exports.simAsset = async (req,res) => {
 }
 
 exports.simPortfolio = async (req,res) => {
+    console.log('PYTHON_SERVICE in backend process:', process.env.PYTHON_SERVICE);
     /**
      * Expected Body: {
      *   assets: [{ name: "AAPL", S0: number, mu: number, sigma: number }, ...],
@@ -142,7 +134,8 @@ exports.simPortfolio = async (req,res) => {
         // console.log(plaidHoldings[0]);
         // console.log(plaidSecurities[0]);
 
-        const { assets, weights, initialValue } = combineHoldsAndSecs(plaidHoldings, plaidSecurities); 
+        // const { assets, weights, initialValue } = combineHoldsAndSecs(plaidHoldings, plaidSecurities); 
+        let comb = combineHoldsAndSecs(plaidHoldings, plaidSecurities);
         const T = req.body?.T ?? 1;
         const r = req.body?.r ?? 0.04;
         const n_steps = req.body?.n_steps ?? 252;
@@ -150,16 +143,41 @@ exports.simPortfolio = async (req,res) => {
         const seed = req.body?.seed ?? null;
 
         // make data into expected body before passing it in
+
+        let assets = comb.assets.map(a => ({
+            S0: Number(a.S0),
+            mu: Number(a.mu),
+            sigma: Number(a.sigma),
+        })).filter(a =>
+            Number.isFinite(a.S0) && a.S0 > 0 &&
+            Number.isFinite(a.mu) &&
+            Number.isFinite(a.sigma) && a.sigma > 0
+        );
+
+        let weights = comb.weights.slice(0, assets.length);
+        const ws = weights.reduce((s,w)=>s+w, 0);
+        if (!assets.length || weights.length !== assets.length || ws === 0) {
+            return res.status(400).json({ success:false, message:"No usable assets/weights after filtering" });
+        }
+        weights = weights.map(w => w / ws);
+
         const payload = {
             assets, weights,
             T, r,
             n_steps, n_paths,
-            seed, return_paths: false
+            seed, return_paths: false,
+            corr: null
         }
 
-        console.log(payload)
 
-        const { data } = await axios.post(`${AI_URL}/sim/portfolio`, payload, { timeout: 10_000 });
+        console.log('PYTHON_SERVICE payload preview:', JSON.stringify({
+            T, r, n_steps, n_paths, seed,
+            assets: assets.slice(0,3),
+            weights: weights.slice(0,3),
+            corr: null
+        }, null, 2));
+
+        const { data } = await axios.post(`${PYTHON_SERVICE}/sim/portfolio`, payload, { timeout: 10_000 });
 
         return res.status(200).json({
             success: true, 
@@ -202,7 +220,9 @@ exports.simPortfolio = async (req,res) => {
         //     }
         // });
     } catch (error) {
-        console.error('AI simulate error:', error.message);
-        return res.status(502).json({ success: false, message: 'AI service unavailable' });
+        const status = error.response?.status || 502;
+        const detail = error.response?.data || error.message;
+        console.error('Python simulate error:', status, JSON.stringify(detail, null, 2));
+        return res.status(status).json({ success: false, message: 'Python service error', detail });
     }
 }
