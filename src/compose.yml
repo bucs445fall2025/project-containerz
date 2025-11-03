@@ -1,8 +1,8 @@
 services:
-  aimodel:
-    build:
-      context: ./ai
-    container_name: fin-aimodel
+  pythonservice:
+    build: ./pythonservice
+    container_name: fin-pythonservice
+    hostname: pythonservice
     ports:
       - "8001:8001"   # not required in prod
     environment:
@@ -12,6 +12,9 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+    networks:
+      finnet:
+        aliases: [pythonservice]
     restart: unless-stopped
   backend:
     build: ./backend
@@ -21,12 +24,15 @@ services:
       MONGODB_URI: mongodb://mongo:27017/fin_tool
       PORT: "3000" 
       TOKEN_SECRET: dev-secret-key
-      AI_URL: http://aimodel:8001  
+      PYTHON_URL: http://pythonservice:8001
     ports:
       - "8081:3000"        
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+    networks: [finnet]
+    depends_on:
+      - pythonservice
 
   frontend:
     build: ./frontend
@@ -42,6 +48,7 @@ services:
       - "5173:5173"        
     depends_on:
       - backend
+    networks: [finnet]
 
   nginx:
     build: ./nginx
@@ -52,6 +59,10 @@ services:
     depends_on:
       - backend
       - frontend
+    networks: [finnet]
 
 volumes:
   backend_node_modules:
+
+networks:
+  finnet:
