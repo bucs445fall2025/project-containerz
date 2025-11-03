@@ -1,3 +1,4 @@
+const { AssetHoldingAssetHoldingRestrictedIndicatorEnum } = require('plaid');
 const User = require('../models/User.js');
 const { plaidClient, getProducts, getCountryCodes } = require('../services/plaid.js');
 
@@ -403,6 +404,11 @@ exports.getInvestments = async (req, res) => {
     const transactionSecurities = Array.isArray(investmentTransactionsResponse.data?.securities)
       ? investmentTransactionsResponse.data.securities
       : [];
+    // console.log(holdingsData);
+    // console.log(holdingsSecurities);
+    user.plaidHoldings = holdingsData; // virtual encrypts
+    user.plaidSecurities = holdingsSecurities; // virtual encrypts
+    await user.save();
 
     const accountsMap = new Map();
     [...holdingsAccounts, ...transactionAccounts].forEach((account) => {
@@ -417,6 +423,8 @@ exports.getInvestments = async (req, res) => {
         securitiesMap.set(security.security_id, security);
       }
     });
+
+    // console.log(securitiesMap);
 
     const responsePayload = {
       accounts: Array.from(accountsMap.values()),

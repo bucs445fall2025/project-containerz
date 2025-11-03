@@ -1,38 +1,38 @@
 services:
-  mongo:
-    image: mongo:7
-    container_name: fin-mongo
-    restart: unless-stopped
+  pythonservice:
+    build: ./pythonservice
+    container_name: fin-pythonservice
+    hostname: pythonservice
     ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-      - ./database/init:/docker-entrypoint-initdb.d:ro
+      - "8001:8001"   # not required in prod
     environment:
-      MONGO_INITDB_DATABASE: fin_tool
+      - PYTHONUNBUFFERED=1
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "mongodb://localhost:27017", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8001)); print('ok')"]
+      interval: 10s
       timeout: 3s
-      retries: 20
-
+      retries: 5
+    networks:
+      finnet:
+        aliases: [pythonservice]
+    restart: unless-stopped
   backend:
     build: ./backend
-    # container_name: backend
     restart: unless-stopped
     environment:
       NODE_ENV: development
       MONGODB_URI: mongodb://mongo:27017/fin_tool
-      PORT: "3000"         #
+      PORT: "3000" 
       TOKEN_SECRET: dev-secret-key
+      PYTHON_URL: http://pythonservice:8001
     ports:
       - "8081:3000"        
-    depends_on:
-      mongo:
-        condition: service_healthy
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+    networks: [finnet]
+    depends_on:
+      - pythonservice
 
   frontend:
     build: ./frontend
@@ -48,6 +48,7 @@ services:
       - "5173:5173"        
     depends_on:
       - backend
+    networks: [finnet]
 
   nginx:
     build: ./nginx
@@ -58,7 +59,10 @@ services:
     depends_on:
       - backend
       - frontend
+    networks: [finnet]
 
 volumes:
-  mongo_data:
   backend_node_modules:
+
+networks:
+  finnet:

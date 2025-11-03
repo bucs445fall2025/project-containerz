@@ -44,6 +44,8 @@ const UserSchema = new mongoose.Schema({
   // Encrypted transaction/investment payloads
   plaidTransactionsEnc: { type: EncryptedBlobSchema, select: false },
   plaidInvestmentsEnc: { type: EncryptedBlobSchema, select: false },
+  plaidSecuritiesEnc: { type: EncryptedBlobSchema, select: false},
+  plaidHoldingsEnc: { type: EncryptedBlobSchema, select: false}
 
 }, {
   timestamps: true,
@@ -83,5 +85,13 @@ UserSchema.virtual('plaidTransactions')
 UserSchema.virtual('plaidInvestments')
   .get(function () { return safeDecrypt(this.plaidInvestmentsEnc, []); })
   .set(function (val)   { this.plaidInvestmentsEnc = encryptBlob(val ?? []); });
+
+UserSchema.virtual('plaidHoldings')
+  .get(function () { return safeDecrypt(this.plaidHoldingsEnc, []); })
+  .set(function (val)   { this.plaidHoldingsEnc = encryptBlob(val ?? []); });
+
+UserSchema.virtual('plaidSecurities')
+  .get(function () { return safeDecrypt(this.plaidSecuritiesEnc, []); })
+  .set(function (val)   { this.plaidSecuritiesEnc = encryptBlob(val ?? []); });
 
 module.exports = mongoose.model('User', UserSchema);
