@@ -109,20 +109,7 @@ exports.simAsset = async (req,res) => {
 }
 
 exports.simPortfolio = async (req,res) => {
-    console.log('PYTHON_SERVICE in backend process:', process.env.PYTHON_SERVICE);
-    /**
-     * Expected Body: {
-     *   assets: [{ name: "AAPL", S0: number, mu: number, sigma: number }, ...],
-     *   weights: number[], // must sum to 1, same length as assets; weight = (quantity × S0) / total_value
-     *   T: number, // years (e.g., 1)
-     *   r: number, // risk-free, decimal (e.g., 0.04)
-     *   n_steps: number, // e.g., 252
-     *   n_paths: number, // e.g., 10000
-     *   seed?: number // optional
-     * }
-     */
     try {
-        // implement here; similar to priceCallOption
         const existingUser = await User.findById(req.user.id).select('+plaidHoldingsEnc +plaidSecuritiesEnc').lean();
         if (!existingUser) { 
             return res.status(404).json({ success: false, message: "user not found" });
@@ -131,18 +118,12 @@ exports.simPortfolio = async (req,res) => {
         let plaidHoldings = decryptBlob(existingUser.plaidHoldingsEnc) || [];
         let plaidSecurities = decryptBlob(existingUser.plaidSecuritiesEnc) || [];
 
-        // console.log(plaidHoldings[0]);
-        // console.log(plaidSecurities[0]);
-
-        // const { assets, weights, initialValue } = combineHoldsAndSecs(plaidHoldings, plaidSecurities); 
         let comb = combineHoldsAndSecs(plaidHoldings, plaidSecurities);
         const T = req.body?.T ?? 1;
         const r = req.body?.r ?? 0.04;
         const n_steps = req.body?.n_steps ?? 252;
         const n_paths = req.body?.n_paths ?? 10000;
         const seed = req.body?.seed ?? null;
-
-        // make data into expected body before passing it in
 
         let assets = comb.assets.map(a => ({
             S0: Number(a.S0),
@@ -169,16 +150,9 @@ exports.simPortfolio = async (req,res) => {
             corr: null
         }
 
-
-        console.log('PYTHON_SERVICE payload preview:', JSON.stringify({
-            T, r, n_steps, n_paths, seed,
-            assets: assets.slice(0,3),
-            weights: weights.slice(0,3),
-            corr: null
-        }, null, 2));
-
         const { data } = await axios.post(`${PYTHON_SERVICE}/sim/portfolio`, payload, { timeout: 10_000 });
 
+        // need to add intital value, pass in from pythonservice
         return res.status(200).json({
             success: true, 
             message: "Portfolio Simulation Complete", 
@@ -192,33 +166,6 @@ exports.simPortfolio = async (req,res) => {
                 corr_matrix_present: false
             }
         });
-
-        // expected output
-        // return res.status(200).json({
-        //     success: true,
-        //     message: "Portfolio Simulation Complete",
-        //     data: {
-        //         initialValue: /* number */,
-        //         portfolioFinalValues: /* number[] */,     // one per path (omit if huge)
-        //         meanFinalValue: /* number */,
-        //         stdFinalValue: /* number */,
-        //         expectedReturn: /* (meanFinalValue - initialValue)/initialValue */,
-        //         portfolioVar95: /* number */,             // e.g., -0.035 -> -3.5% over horizon
-        //         portfolioCvar95: /* number */,
-        //         // optional extras:
-        //         // percentileFinalValues: { p5: number, p25: number, p50: number, p75: number, p95: number },
-        //         // sharpe: number,   // (E[R] - r) / std(R) over horizon
-        //         params: {
-        //             T: /* from input */, 
-        //             r: /* from input */,
-        //             n_steps: /* from input */, 
-        //             n_paths: /* from input */,
-        //             weights: /* from input */, 
-        //             seed: /* from input or null */,
-        //             corr_matrix_present: /* true|false */
-        //         }
-        //     }
-        // });
     } catch (error) {
         const status = error.response?.status || 502;
         const detail = error.response?.data || error.message;
