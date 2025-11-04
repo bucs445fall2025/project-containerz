@@ -141,13 +141,15 @@ exports.simAsset = async (req,res) => {
      */
     try {
         // implement here; similar to priceCallOption
+        const asset = req.body;
 
-        // const payload = {
-            
-        // }
-
-        // const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, payload, { timeout: 10_000 });
-
+        const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, asset, { timeout: 10_000 });
+    
+        return res.status(200).json({
+            success: true, 
+            message: "Asset Simulation Complete", 
+            data,
+        });
         // expected output
         // return res.status(200).json({
         //     success: true,
@@ -159,11 +161,6 @@ exports.simAsset = async (req,res) => {
         //         expectedReturn: float, // (meanFinalPrice - S0)/S0
         //         params: { S0, mu, sigma, T, r, n_steps, n_paths } // echo back what was used for outcomes (mainly for debug)
         //     }
-        // });
-        // return res.status(200).json({
-        //     success: true, 
-        //     message: "Asset Simulation Complete", 
-        //     data,
         // });
     } catch (error) {
         console.error('AI simulate error:', error.message);
