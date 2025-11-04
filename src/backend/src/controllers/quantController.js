@@ -11,7 +11,7 @@ function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'C
         const s = secById.get(h.security_id);
         if (!s) continue;
 
-        const rawS0 = (h.institution_price ?? s.close_price ?? s.close_price_as_of ?? null);
+        const rawS0 = (h.close_price ?? s.institution_price ?? null);
         const S0 = Number(rawS0);
         const quantity = Number(h.quantity);
 
@@ -61,7 +61,6 @@ function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'C
     };
 }
 
-
 exports.priceCallOption = async (req, res) => {
     try {
         // Expect body: { S0, K, T, r, sigma, n_paths, seed }
@@ -72,6 +71,58 @@ exports.priceCallOption = async (req, res) => {
         return res.status(502).json({ success: false, message: 'AI service unavailable' });
   }
 };
+
+exports.getHoldingsAndSecurities = async (req,res) => {
+    try {
+        const existingUser = await User.findById(req.user.id).select('+plaidHoldingsEnc +plaidSecuritiesEnc').lean();
+        if (!existingUser) { 
+            return res.status(404).json({ success: false, message: "user not found" });
+        }
+
+        let plaidHoldings = decryptBlob(existingUser.plaidHoldingsEnc) || [];
+        let plaidSecurities = decryptBlob(existingUser.plaidSecuritiesEnc) || [];
+
+        let comb = combineHoldsAndSecs(plaidHoldings, plaidSecurities);
+        const T = req.body?.T ?? 1;
+        const r = req.body?.r ?? 0.04;
+        const n_steps = req.body?.n_steps ?? 252;
+        const n_paths = req.body?.n_paths ?? 10000;
+        const seed = req.body?.seed ?? null;
+
+        let assets = comb.assets.map(a => ({
+            S0: Number(a.S0),
+            mu: Number(a.mu),
+            sigma: Number(a.sigma),
+        })).filter(a =>
+            Number.isFinite(a.S0) && a.S0 > 0 &&
+            Number.isFinite(a.mu) &&
+            Number.isFinite(a.sigma) && a.sigma > 0
+        );
+
+        let weights = comb.weights.slice(0, assets.length);
+        const ws = weights.reduce((s,w)=>s+w, 0);
+        if (!assets.length || weights.length !== assets.length || ws === 0) {
+            return res.status(400).json({ success:false, message:"No usable assets/weights after filtering" });
+        }
+        weights = weights.map(w => w / ws);
+
+        const payload = {
+            assets, weights,
+            T, r,
+            n_steps, n_paths,
+            seed, return_paths: false,
+            corr: null
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Assets retrieved",
+            payload
+        })
+    } catch (error) {
+        console.log(error);
+    }
+}
 
 exports.simAsset = async (req,res) => {
     /**
@@ -89,6 +140,12 @@ exports.simAsset = async (req,res) => {
      */
     try {
         // implement here; similar to priceCallOption
+
+        const payload = {
+            S0
+        }
+
+        const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, payload, { timeout: 10_000 });
 
         // expected output
         // return res.status(200).json({
