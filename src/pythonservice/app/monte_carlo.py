@@ -58,7 +58,8 @@ def gbm_asset(
     """
     GBM on single asset
     need to deconstruct asset to get the values from it
-    idk if to do it here or in main.py. Need to change schema potentially
+    idk if to do it here or in main.py. Need to change schema potentially, and request/ parameters in this func
+    follow github 
     """
 
 
@@ -95,28 +96,9 @@ def gbm_portfolio(
     sig = np.array([float(a["sigma"]) for a in assets], dtype=float)
     if np.any(S0 <= 0) or np.any(sig <= 0):
         raise ValueError("S0 and sigma must be > 0 for all assets")
-    
-    # correlation matrix stuff
-    # if corr is None:
-    #     C = np.eye(n_assets, dtype=float)
-    # else:
-    #     C = np.asarray(corr, dtype=float)
-    #     if C.shape != (n_assets, n_assets):
-    #         raise ValueError("corr must be (n_assets x n_assets)")
-    #     C = 0.5 * (C + C.T)
-    #     np.fill_diagonal(C, 1.0)
-    
-    # jitter = 0.0
-    # while True:
-    #     try:
-    #         L = np.linalg.cholesky(C + np.eye(n_assets) * jitter)
-    #         break
-    #     except np.linalg.LinAlgError:
-    #         jitter = 1e-10 if jitter == 0.0 else jitter * 10
-    #         if jitter > 1e-4:
-    #             raise ValueError("Correlation matrix not positive semidefinite")
-    C = _validate_corr(corr, n_assets)
 
+    # correleation meatrices
+    C = _validate_corr(corr, n_assets)
     L = np.linalg.cholesky(C)
 
     # --- simulationing ---
