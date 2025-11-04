@@ -6,6 +6,31 @@ class Asset(BaseModel):
     mu: float
     sigma: float
 
+class SingleAsset(BaseModel):
+    S0: float
+    mu: float
+    sigma: float
+    weights: float
+    T: float
+    r: float
+    n_steps: int = 252
+    n_paths: int = 10_000
+    seed: Optional[int] = None
+
+
+class MCRequestAsset(BaseModel):
+    asset: SingleAsset
+
+class MCResponseAsset(BaseModel):
+    FinalValue: Optional[float] = None
+    meanFinalValue: float
+    stdFinalValue: float
+    expectedReturn: float
+    AssetVar95: float
+    AssetCvar95: float
+    params: Dict[str, Any]
+
+
 class MCRequestPortfolio(BaseModel):
     assets: List[Asset]
     weights: List[float]
