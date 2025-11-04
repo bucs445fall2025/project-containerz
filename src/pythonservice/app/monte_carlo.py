@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any, Tuple
 import numpy as np
 import yfinance as yf
+from .schemas import Asset
 
 # ---- helpers ---- 
 def check_ticker(symbol):
@@ -51,33 +52,18 @@ def _validate_corr(corr: Optional[List[List[float]]], n_assets: int) -> np.ndarr
 
 # ---- simulation ---- 
 
-#example
-def price_european_call_spot_mc(
-    S0: float, K: float, T: float, r: float, sigma: float, n_paths: int = 10000, seed: int | None = None
-):
+def gbm_asset(
+        asset: Asset
+) -> Tuple[float, float, float, float, float, float, Dict[str, Any]]:
     """
-    Black–Scholes under GBM; Monte Carlo pricing for a European call.
-    Returns (price, std_error).
+    GBM on single asset
+    need to deconstruct asset to get the values from it
+    idk if to do it here or in main.py. Need to change schema potentially
     """
-    if seed is not None:
-        np.random.seed(seed)
 
-    # draw standard normals for terminal simulation
-    Z = np.random.randn(n_paths)
-    # Geometric Brownian Motion terminal price
-    ST = S0 * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
-    payoff = np.maximum(ST - K, 0.0)
-    disc_payoff = np.exp(-r * T) * payoff
-
-    price = disc_payoff.mean()
-    stderr = disc_payoff.std(ddof=1) / np.sqrt(n_paths)
-    return price, stderr
-
-
-# add single asset simulation, and simulate portfolio functions here
 
 def gbm_portfolio(
-    assets: List[Dict[str, Any]], weights: List[float], T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None, corr: Optional[List[List[float]]] = None
+        assets: List[Dict[str, Any]], weights: List[float], T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None, corr: Optional[List[List[float]]] = None
 ) -> Tuple[List[float], float, float, float, float, float, Dict[str, Any]]:
     """
     GBM, MonteCarlo for portfolio
