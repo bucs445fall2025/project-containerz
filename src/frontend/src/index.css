@@ -535,6 +535,20 @@ a:hover {
   overflow: hidden;
 }
 
+.transaction-breakdown-bar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  border-radius: inherit;
+  min-width: 4px;
+  transition: width 0.3s ease;
+}
+
+.transaction-breakdown-value {
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
 .transaction-breakdown-fill {
   height: 100%;
   background: linear-gradient(135deg, #2563eb, #4f46e5);
