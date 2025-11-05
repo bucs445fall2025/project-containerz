@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import uvicorn
 from .schemas import MCRequestAsset, MCResponseAsset, MCRequestPortfolio, MCResponsePortfolio
-from .monte_carlo import gbm_portfolio
+from .monte_carlo import gbm_asset, gbm_portfolio
 
 app = FastAPI(title='FinTool AI/Quant Service', version='0.1.0')
 
@@ -11,12 +11,21 @@ def health():
 
 
 @app.post('/sim/asset', response_model=MCResponseAsset)
-def simulatePortfolio(req: MCRequestAsset):
-    FinalValue, meanFinalValue, stdFinalValue, expectedReturn, AssetVar95, AssetCvar95, params = gbm_portfolio(
-        asset=req.asset, 
+def simulateAsset(req: MCRequestAsset):
+    FinalValue, meanFinalValue, stdFinalValue, expectedReturn, AssetVar95, AssetCvar95, params = gbm_asset(
+        Name=req.Name,
+        S0=req.S0,
+        mu=req.mu,
+        sigma=req.sigma,
+        weight=req.weight,
+        T=req.T,
+        r=req.r,
+        n_steps=req.n_steps,
+        n_paths=req.n_paths,
+        seed=req.seed,
     )
-    return MCResponsePortfolio(
-        portfolioFinalValues=FinalValue,
+    return MCResponseAsset(
+        portfolioFinalValue=FinalValue,
         meanFinalValue=meanFinalValue,
         stdFinalValue=stdFinalValue,
         expectedReturn=expectedReturn,
