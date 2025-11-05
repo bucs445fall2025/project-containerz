@@ -53,7 +53,7 @@ def _validate_corr(corr: Optional[List[List[float]]], n_assets: int) -> np.ndarr
 # ---- simulation ---- 
 
 def gbm_asset(
-        asset: Asset
+        Name: str, S0: float, mu: float, sigma: float, weight: float, T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None
 ) -> Tuple[float, float, float, float, float, float, Dict[str, Any]]:
     """
     GBM on single asset
