@@ -82,6 +82,7 @@ exports.getHoldingsAndSecurities = async (req,res) => {
         // console.log(comb);
 
         let assets = comb.assets.map(a => ({
+            Name: a.name,
             S0: Number(a.S0),
             mu: Number(a.mu),
             sigma: Number(a.sigma),
@@ -99,6 +100,7 @@ exports.getHoldingsAndSecurities = async (req,res) => {
         weights = weights.map(w => w / ws);
 
         let finalAssets = comb.assets.map((a, index) => ({
+            Name: a.name,
             S0: Number(a.S0),
             mu: Number(a.mu),
             sigma: Number(a.sigma),
@@ -143,13 +145,18 @@ exports.simAsset = async (req,res) => {
         // implement here; similar to priceCallOption
         const asset = req.body;
 
-        const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, asset, { timeout: 10_000 });
+        // const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, asset, { timeout: 10_000 });
     
         return res.status(200).json({
             success: true, 
             message: "Asset Simulation Complete", 
-            data,
+            asset
         });
+        // return res.status(200).json({
+        //     success: true, 
+        //     message: "Asset Simulation Complete", 
+        //     data
+        // });
         // expected output
         // return res.status(200).json({
         //     success: true,
