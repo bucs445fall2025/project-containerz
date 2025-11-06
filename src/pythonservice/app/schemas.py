@@ -19,6 +19,7 @@ class MCRequestAsset(BaseModel):
     seed: Optional[int] = None
 
 class MCResponseAsset(BaseModel):
+    Name: str
     FinalValue: Optional[float] = None
     meanFinalValue: float
     stdFinalValue: float
