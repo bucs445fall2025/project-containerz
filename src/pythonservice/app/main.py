@@ -25,6 +25,7 @@ def simulateAsset(req: MCRequestAsset):
         seed=req.seed,
     )
     return MCResponseAsset(
+        Name=req.Name,
         portfolioFinalValue=FinalValue,
         meanFinalValue=meanFinalValue,
         stdFinalValue=stdFinalValue,
