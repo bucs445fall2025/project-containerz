@@ -54,13 +54,15 @@ def _validate_corr(corr: Optional[List[List[float]]], n_assets: int) -> np.ndarr
 
 def gbm_asset(
         Name: str, S0: float, mu: float, sigma: float, weight: float, T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None
-) -> Tuple[float, float, float, float, float, float, Dict[str, Any]]:
+) -> Tuple[str, float, float, float, float, float, float, Dict[str, Any]]:
     """
     GBM on single asset
-    need to deconstruct asset to get the values from it
-    idk if to do it here or in main.py. Need to change schema potentially, and request/ parameters in this func
+    Return the name, and maybe the values needed for graph
     follow github 
     """
+
+    # roughly what the response shouuld be
+    # return Name, FinalValue, meanFinalValue, stdFinalValue, expectedReturn, AssetVar95, AssetCvar95, params
 
 
 def gbm_portfolio(
