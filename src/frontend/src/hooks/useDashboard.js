@@ -9,7 +9,11 @@ import {
   fetchTransactions,
   setAccessToken
 } from '../api/plaid.js';
-import { sendVerificationCode, verifyVerificationCode } from '../api/auth.js';
+import {
+  sendVerificationCode,
+  verifyVerificationCode,
+  request as apiRequest
+} from '../api/auth.js';
 
 const DASHBOARD_TABS = [
   { key: 'balances', label: 'Account Balances' },
@@ -19,6 +23,70 @@ const DASHBOARD_TABS = [
 ];
 
 const TRANSACTIONS_PER_PAGE = 10;
+
+const normalizeNumber = (value) => {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+};
+
+const buildPortfolioRequestBody = (options = {}) => {
+  const body = {};
+
+  if (options.T !== undefined) body.T = normalizeNumber(options.T) ?? options.T;
+  if (options.r !== undefined) body.r = normalizeNumber(options.r) ?? options.r;
+  if (options.nSteps !== undefined) {
+    body.n_steps = normalizeNumber(options.nSteps) ?? options.nSteps;
+  }
+  if (options.nPaths !== undefined) {
+    body.n_paths = normalizeNumber(options.nPaths) ?? options.nPaths;
+  }
+  if (options.seed !== undefined) body.seed = normalizeNumber(options.seed) ?? options.seed;
+  if (options.corr !== undefined) body.corr = options.corr;
+  if (options.returnPaths !== undefined) {
+    body.return_paths = Boolean(options.returnPaths);
+  }
+
+  if (body.return_paths === undefined) {
+    body.return_paths = true;
+  }
+
+  return body;
+};
+
+const buildAssetRequestBody = (options = {}) => {
+  const { securityId, ticker } = options;
+  if (!securityId && !ticker) {
+    throw new Error('securityId or ticker is required to run the asset simulation');
+  }
+
+  const body = {
+    securityId,
+    ticker
+  };
+
+  if (options.S0 !== undefined) body.S0 = normalizeNumber(options.S0) ?? options.S0;
+  if (options.mu !== undefined) body.mu = normalizeNumber(options.mu) ?? options.mu;
+  if (options.sigma !== undefined) body.sigma = normalizeNumber(options.sigma) ?? options.sigma;
+  if (options.T !== undefined) body.T = normalizeNumber(options.T) ?? options.T;
+  if (options.r !== undefined) body.r = normalizeNumber(options.r) ?? options.r;
+  if (options.nSteps !== undefined) {
+    body.n_steps = normalizeNumber(options.nSteps) ?? options.nSteps;
+  }
+  if (options.nPaths !== undefined) {
+    body.n_paths = normalizeNumber(options.nPaths) ?? options.nPaths;
+  }
+  if (options.seed !== undefined) body.seed = normalizeNumber(options.seed) ?? options.seed;
+  if (options.returnPaths !== undefined) {
+    body.return_paths = Boolean(options.returnPaths);
+  } else {
+    body.return_paths = true;
+  }
+
+  return body;
+};
 
 export function useDashboard() {
   const { user, token, logout, refreshUser } = useAuth();
@@ -48,6 +116,24 @@ export function useDashboard() {
   const [hasRequestedCode, setHasRequestedCode] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(DASHBOARD_TABS[0].key);
+  const [portfolioSimulation, setPortfolioSimulation] = useState({
+    loading: false,
+    error: null,
+    data: null,
+    params: null,
+    meta: null,
+    runAt: null
+  });
+  const [assetSimulation, setAssetSimulation] = useState({
+    loading: false,
+    error: null,
+    data: null,
+    asset: null,
+    position: null,
+    holdingFinalValues: null,
+    runAt: null
+  });
+  const [assetModalOpen, setAssetModalOpen] = useState(false);
 
   const tabDefinitions = useMemo(
     () =>
@@ -334,6 +420,105 @@ export function useDashboard() {
     open();
   };
 
+  const runPortfolioSimulation = useCallback(
+    async (options = {}) => {
+      if (!token) {
+        return;
+      }
+      setPortfolioSimulation((prev) => ({
+        ...prev,
+        loading: true,
+        error: null
+      }));
+      try {
+        const body = buildPortfolioRequestBody(options);
+        const response = await apiRequest('/quant/mc/portfolio', {
+          method: 'POST',
+          token,
+          body
+        });
+        setPortfolioSimulation({
+          loading: false,
+          error: null,
+          data: response?.data ?? null,
+          params: response?.params ?? null,
+          meta: response?.meta ?? null,
+          runAt: new Date().toISOString()
+        });
+      } catch (simulationError) {
+        console.error('Unable to simulate portfolio', simulationError);
+        setPortfolioSimulation((prev) => ({
+          ...prev,
+          loading: false,
+          error: simulationError.message ?? 'Unable to simulate portfolio'
+        }));
+      }
+    },
+    [token]
+  );
+
+  const handleAssetSimulation = useCallback(
+    async (target) => {
+      if (!token) {
+        return;
+      }
+      let params = null;
+      if (typeof target === 'string') {
+        params = { securityId: target };
+      } else if (target?.securityId) {
+        params = { securityId: target.securityId };
+      } else if (target?.ticker) {
+        params = { ticker: target.ticker };
+      }
+      if (!params) {
+        return;
+      }
+      setAssetModalOpen(true);
+      setAssetSimulation({
+        loading: true,
+        error: null,
+        data: null,
+        asset: null,
+        position: null,
+        holdingFinalValues: null,
+        runAt: null
+      });
+      try {
+        const body = buildAssetRequestBody(params);
+        const response = await apiRequest('/quant/mc/asset', {
+          method: 'POST',
+          token,
+          body
+        });
+        setAssetSimulation({
+          loading: false,
+          error: null,
+          data: response?.data ?? null,
+          asset: response?.asset ?? null,
+          position: response?.position ?? null,
+          holdingFinalValues: response?.holdingFinalValues ?? null,
+          runAt: new Date().toISOString()
+        });
+      } catch (simulationError) {
+        console.error('Unable to simulate asset', simulationError);
+        setAssetSimulation({
+          loading: false,
+          error: simulationError.message ?? 'Unable to simulate this asset',
+          data: null,
+          asset: null,
+          position: null,
+          holdingFinalValues: null,
+          runAt: null
+        });
+      }
+    },
+    [token]
+  );
+
+  const handleCloseAssetModal = useCallback(() => {
+    setAssetModalOpen(false);
+  }, []);
+
   const spendingBreakdown = useMemo(() => {
     const totals = new Map();
     let total = 0;
@@ -455,6 +640,69 @@ export function useDashboard() {
     });
     return lookup;
   }, [investmentSecurities]);
+
+  const analysisHoldings = useMemo(() => {
+    return investmentHoldings
+      .map((holding, index) => {
+        const security = securitiesLookup.get(holding.security_id);
+        const rawPrice =
+          holding.institution_price ??
+          security?.close_price ??
+          security?.close_price_as_of ??
+          security?.close_price_adjusted ??
+          null;
+        const price = Number(rawPrice);
+        const quantity = Number(holding.quantity ?? 0);
+        if (!Number.isFinite(price) || price <= 0) {
+          return null;
+        }
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          return null;
+        }
+        const currency =
+          holding.iso_currency_code ||
+          holding.unofficial_currency_code ||
+          security?.iso_currency_code ||
+          security?.unofficial_currency_code ||
+          'USD';
+        const ticker =
+          security?.ticker_symbol ||
+          (security?.type && security.type.toLowerCase().includes('cash') ? 'CASH' : null);
+        const name = security?.name || ticker || `Holding ${index + 1}`;
+        const account = accountLookup.get(holding.account_id);
+        const accountName =
+          account?.official_name ||
+          account?.name ||
+          account?.institution?.name ||
+          account?.bank_name ||
+          null;
+        return {
+          securityId: holding.security_id,
+          name,
+          ticker,
+          accountName,
+          quantity,
+          price,
+          value: price * quantity,
+          currency
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.value - a.value);
+  }, [investmentHoldings, securitiesLookup, accountLookup]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    if (activeTab !== 'analysis') {
+      return;
+    }
+    if (!analysisHoldings.length) {
+      return;
+    }
+    runPortfolioSimulation();
+  }, [activeTab, analysisHoldings.length, runPortfolioSimulation, token]);
 
   const getCurrencyCode = (account) =>
     account?.balances?.iso_currency_code || account?.balances?.unofficial_currency_code || 'USD';
@@ -708,7 +956,19 @@ export function useDashboard() {
     analysis: {
       showBreakdown: showSpendingBreakdown,
       breakdown: spendingBreakdown,
-      currency: spendingBreakdownTotalCurrency
+      currency: spendingBreakdownTotalCurrency,
+      monteCarlo: {
+        holdings: analysisHoldings,
+        hasHoldings: analysisHoldings.length > 0,
+        portfolio: portfolioSimulation,
+        asset: assetSimulation,
+        modal: {
+          isOpen: assetModalOpen,
+          onClose: handleCloseAssetModal
+        },
+        onRunPortfolio: runPortfolioSimulation,
+        onSelectAsset: handleAssetSimulation
+      }
     },
     lookups: {
       account: accountLookup,

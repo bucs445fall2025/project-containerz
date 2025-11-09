@@ -64,8 +64,21 @@ export default function DashboardView({
   } = investments;
   const { investmentValue: totalInvestmentValue, holdingsValue: totalHoldingsValue } = totals;
   const { summary: investmentSummaryCurrency, holdings: holdingsSummaryCurrency } = currencies;
-  const { showBreakdown, breakdown: spendingBreakdown, currency: spendingBreakdownTotalCurrency } =
-    analysis;
+  const {
+    showBreakdown,
+    breakdown: spendingBreakdown,
+    currency: spendingBreakdownTotalCurrency,
+    monteCarlo: monteCarloAnalysis
+  } = analysis;
+  const {
+    holdings: analysisHoldingsList = [],
+    hasHoldings: hasAnalysisHoldings = false,
+    portfolio: portfolioSimulationState = {},
+    asset: assetSimulationState = {},
+    modal: analysisModalState = {},
+    onRunPortfolio: onRunPortfolioSimulation,
+    onSelectAsset: onSelectAssetSimulation
+  } = monteCarloAnalysis ?? {};
   const { account: accountLookup, security: securitiesLookup } = lookups;
   const {
     getInstitutionName,
@@ -84,6 +97,85 @@ export default function DashboardView({
     getCurrencyCode,
     getTransactionBackground
   } = formatters;
+  const parseNumeric = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+  const formatRunTimestamp = (value) => {
+    if (!value) {
+      return null;
+    }
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      }).format(new Date(value));
+    } catch (_error) {
+      return value;
+    }
+  };
+
+  const portfolioSimData = portfolioSimulationState?.data;
+  const portfolioInitialValue = parseNumeric(
+    portfolioSimulationState?.meta?.initialValue ??
+      portfolioSimData?.params?.V0 ??
+      totalHoldingsValue
+  );
+  const portfolioMeanFinalValue = parseNumeric(portfolioSimData?.meanFinalValue);
+  const portfolioStdFinalValue = parseNumeric(portfolioSimData?.stdFinalValue);
+  const portfolioExpectedReturn = parseNumeric(portfolioSimData?.expectedReturn);
+  const portfolioVar95Return = parseNumeric(portfolioSimData?.portfolioVar95);
+  const portfolioCvar95Return = parseNumeric(portfolioSimData?.portfolioCvar95);
+  const portfolioVar95FinalValue =
+    portfolioInitialValue !== null && portfolioVar95Return !== null
+      ? portfolioInitialValue * (1 + portfolioVar95Return)
+      : null;
+  const portfolioCvar95FinalValue =
+    portfolioInitialValue !== null && portfolioCvar95Return !== null
+      ? portfolioInitialValue * (1 + portfolioCvar95Return)
+      : null;
+  const portfolioPathCount =
+    ((Array.isArray(portfolioSimData?.portfolioFinalValues) &&
+      portfolioSimData.portfolioFinalValues.length)
+      ? portfolioSimData.portfolioFinalValues.length
+      : null) ??
+    (Number.isFinite(Number(portfolioSimulationState?.params?.n_paths))
+      ? Number(portfolioSimulationState.params.n_paths)
+      : null);
+  const portfolioAssetCount =
+    portfolioSimData?.params?.n_assets ??
+    (hasAnalysisHoldings ? analysisHoldingsList.length : null);
+  const portfolioRunTimestamp = formatRunTimestamp(portfolioSimulationState?.runAt);
+
+  const assetSimData = assetSimulationState?.data;
+  const assetPosition = assetSimulationState?.position;
+  const assetPrice = parseNumeric(assetSimulationState?.asset?.price);
+  const assetQuantity = parseNumeric(assetSimulationState?.asset?.quantity);
+  const assetCurrency = assetSimulationState?.asset?.currency || 'USD';
+  const assetMeanFinalPrice = parseNumeric(assetSimData?.meanFinalPrice);
+  const assetStdFinalPrice = parseNumeric(assetSimData?.stdFinalPrice);
+  const assetExpectedReturn = parseNumeric(assetSimData?.expectedReturn);
+  const assetVar95Return = parseNumeric(assetSimData?.assetVar95);
+  const assetCvar95Return = parseNumeric(assetSimData?.assetCvar95);
+  const assetVar95Price =
+    assetVar95Return !== null && assetPrice !== null ? assetPrice * (1 + assetVar95Return) : null;
+  const assetCvar95Price =
+    assetCvar95Return !== null && assetPrice !== null ? assetPrice * (1 + assetCvar95Return) : null;
+  const assetRunTimestamp = formatRunTimestamp(assetSimulationState?.runAt);
+  const assetPathCount =
+    (Array.isArray(assetSimData?.finalPrices) && assetSimData.finalPrices.length
+      ? assetSimData.finalPrices.length
+      : null) ?? null;
+  const assetHoldingInitialValue = parseNumeric(assetPosition?.initialValue);
+  const assetMeanHoldingValue = parseNumeric(assetPosition?.meanFinalValue);
+  const assetStdHoldingValue = parseNumeric(assetPosition?.stdFinalValue);
+  const assetVar95HoldingValue = parseNumeric(assetPosition?.var95FinalValue);
+  const assetCvar95HoldingValue = parseNumeric(assetPosition?.cvar95FinalValue);
+  const assetModalOpen = Boolean(analysisModalState?.isOpen);
+  const analysisModalOnClose = analysisModalState?.onClose || (() => {});
 
   return (
     <div className="dashboard">
@@ -773,6 +865,276 @@ export default function DashboardView({
                     })}
                   </div>
                 </section>
+              ) : null}
+            </section>
+          ) : null}
+
+          {active === 'analysis' ? (
+            <section
+              id="dashboard-panel-analysis"
+              role="tabpanel"
+              aria-labelledby="dashboard-tab-analysis"
+              className="dashboard-panel analysis-panel"
+            >
+              <div className="analysis-header">
+                <div>
+                  <h3>Monte Carlo analysis</h3>
+                  <p>Project potential outcomes for your portfolio and individual holdings.</p>
+                </div>
+                <button
+                  className="auth-button"
+                  type="button"
+                  onClick={() => onRunPortfolioSimulation?.()}
+                  disabled={!hasAnalysisHoldings || portfolioSimulationState.loading}
+                >
+                  {portfolioSimulationState.loading ? 'Running…' : 'Re-run portfolio simulation'}
+                </button>
+              </div>
+
+              {!hasAnalysisHoldings ? (
+                <p className="analysis-empty">
+                  Connect an investment account with holdings to run the Monte Carlo analysis.
+                </p>
+              ) : (
+                <>
+                  {portfolioSimulationState.error ? (
+                    <p className="dashboard-error">{portfolioSimulationState.error}</p>
+                  ) : null}
+
+                  <div className="analysis-grid">
+                    <article className="analysis-card">
+                      <span className="analysis-label">Current portfolio value</span>
+                      <span className="analysis-value">
+                        {portfolioInitialValue !== null
+                          ? formatCurrency(portfolioInitialValue, holdingsSummaryCurrency)
+                          : '—'}
+                      </span>
+                      {portfolioRunTimestamp ? (
+                        <span className="analysis-meta">Last run {portfolioRunTimestamp}</span>
+                      ) : null}
+                    </article>
+                    <article className="analysis-card">
+                      <span className="analysis-label">Projected mean value</span>
+                      <span className="analysis-value">
+                        {portfolioMeanFinalValue !== null
+                          ? formatCurrency(portfolioMeanFinalValue, holdingsSummaryCurrency)
+                          : '—'}
+                      </span>
+                      <span className="analysis-meta">
+                        Std dev{' '}
+                        {portfolioStdFinalValue !== null
+                          ? formatCurrency(portfolioStdFinalValue, holdingsSummaryCurrency)
+                          : '—'}
+                      </span>
+                    </article>
+                    <article className="analysis-card">
+                      <span className="analysis-label">Expected return</span>
+                      <span className="analysis-value">
+                        {portfolioExpectedReturn !== null
+                          ? formatPercentChange(portfolioExpectedReturn)
+                          : '—'}
+                      </span>
+                      {portfolioAssetCount ? (
+                        <span className="analysis-meta">{portfolioAssetCount} assets modeled</span>
+                      ) : null}
+                    </article>
+                    <article className="analysis-card">
+                      <span className="analysis-label">5% VaR / CVaR</span>
+                      <span className="analysis-value">
+                        {portfolioVar95FinalValue !== null
+                          ? formatCurrency(portfolioVar95FinalValue, holdingsSummaryCurrency)
+                          : '—'}
+                      </span>
+                      <span className="analysis-meta">
+                        ES{' '}
+                        {portfolioCvar95FinalValue !== null
+                          ? formatCurrency(portfolioCvar95FinalValue, holdingsSummaryCurrency)
+                          : '—'}
+                      </span>
+                    </article>
+                  </div>
+
+                  <div className="analysis-meta-row">
+                    {portfolioPathCount ? (
+                      <span>{portfolioPathCount.toLocaleString()} simulated paths</span>
+                    ) : null}
+                    {portfolioSimulationState.params?.n_steps ? (
+                      <span>{portfolioSimulationState.params.n_steps} time steps</span>
+                    ) : null}
+                    {portfolioSimulationState.loading ? <span>Running…</span> : null}
+                  </div>
+
+                  <section className="analysis-assets" aria-label="Asset stress tests">
+                    <div className="analysis-assets-header">
+                      <div>
+                        <h4>Asset stress tests</h4>
+                        <p>Select a holding to run a dedicated Monte Carlo simulation.</p>
+                      </div>
+                    </div>
+                    <div className="analysis-asset-grid">
+                      {analysisHoldingsList.map((holding) => (
+                        <button
+                          type="button"
+                          key={holding.securityId || `${holding.name}-${holding.value}`}
+                          className="analysis-asset-card"
+                          onClick={() => onSelectAssetSimulation?.(holding)}
+                        >
+                          <div className="analysis-asset-card-header">
+                            <div className="analysis-asset-card-title">
+                              <span className="analysis-asset-name">{holding.name}</span>
+                              {holding.ticker ? (
+                                <span className="analysis-asset-ticker">{holding.ticker}</span>
+                              ) : null}
+                              {holding.accountName ? (
+                                <span className="analysis-asset-account">{holding.accountName}</span>
+                              ) : null}
+                            </div>
+                            <span className="analysis-asset-value">
+                              {formatCurrency(holding.value, holding.currency)}
+                            </span>
+                          </div>
+                          <div className="analysis-asset-meta">
+                            <span>Qty {formatQuantity(holding.quantity)}</span>
+                            <span>{formatCurrency(holding.price, holding.currency)} / share</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {assetModalOpen ? (
+                <div className="analysis-modal-overlay" role="dialog" aria-modal="true">
+                  <div className="analysis-modal-card">
+                    <div className="analysis-modal-header">
+                      <div>
+                        <h4>{assetSimulationState?.asset?.name || 'Asset simulation'}</h4>
+                        {assetSimulationState?.asset?.ticker ? (
+                          <span className="analysis-asset-ticker">
+                            {assetSimulationState.asset.ticker}
+                          </span>
+                        ) : null}
+                      </div>
+                      <button type="button" className="analysis-modal-close" onClick={analysisModalOnClose}>
+                        Close
+                      </button>
+                    </div>
+
+                    {assetSimulationState.loading ? (
+                      <p>Running asset simulation…</p>
+                    ) : assetSimulationState.error ? (
+                      <p className="dashboard-error">{assetSimulationState.error}</p>
+                    ) : assetSimData ? (
+                      <>
+                        <div className="analysis-grid">
+                          <article className="analysis-card">
+                            <span className="analysis-label">Price today</span>
+                            <span className="analysis-value">
+                              {assetPrice !== null
+                                ? formatCurrency(assetPrice, assetCurrency)
+                                : '—'}
+                            </span>
+                            {assetQuantity !== null ? (
+                              <span className="analysis-meta">
+                                Qty {formatQuantity(assetQuantity)}
+                              </span>
+                            ) : null}
+                          </article>
+                          <article className="analysis-card">
+                            <span className="analysis-label">Mean final price</span>
+                            <span className="analysis-value">
+                              {assetMeanFinalPrice !== null
+                                ? formatCurrency(assetMeanFinalPrice, assetCurrency)
+                                : '—'}
+                            </span>
+                            <span className="analysis-meta">
+                              Std dev{' '}
+                              {assetStdFinalPrice !== null
+                                ? formatCurrency(assetStdFinalPrice, assetCurrency)
+                                : '—'}
+                            </span>
+                          </article>
+                          <article className="analysis-card">
+                            <span className="analysis-label">Expected return</span>
+                            <span className="analysis-value">
+                              {assetExpectedReturn !== null
+                                ? formatPercentChange(assetExpectedReturn)
+                                : '—'}
+                            </span>
+                            {assetRunTimestamp ? (
+                              <span className="analysis-meta">Last run {assetRunTimestamp}</span>
+                            ) : null}
+                          </article>
+                          <article className="analysis-card">
+                            <span className="analysis-label">5% VaR / CVaR (share)</span>
+                            <span className="analysis-value">
+                              {assetVar95Price !== null
+                                ? formatCurrency(assetVar95Price, assetCurrency)
+                                : '—'}
+                            </span>
+                            <span className="analysis-meta">
+                              ES{' '}
+                              {assetCvar95Price !== null
+                                ? formatCurrency(assetCvar95Price, assetCurrency)
+                                : '—'}
+                            </span>
+                          </article>
+                        </div>
+
+                        {assetHoldingInitialValue !== null ? (
+                          <div className="analysis-grid analysis-grid--compact">
+                            <article className="analysis-card">
+                              <span className="analysis-label">Position value</span>
+                              <span className="analysis-value">
+                                {formatCurrency(assetHoldingInitialValue, assetCurrency)}
+                              </span>
+                            </article>
+                            <article className="analysis-card">
+                              <span className="analysis-label">Projected value</span>
+                              <span className="analysis-value">
+                                {assetMeanHoldingValue !== null
+                                  ? formatCurrency(assetMeanHoldingValue, assetCurrency)
+                                  : '—'}
+                              </span>
+                              <span className="analysis-meta">
+                                Std dev{' '}
+                                {assetStdHoldingValue !== null
+                                  ? formatCurrency(assetStdHoldingValue, assetCurrency)
+                                  : '—'}
+                              </span>
+                            </article>
+                            <article className="analysis-card">
+                              <span className="analysis-label">VaR / CVaR (position)</span>
+                              <span className="analysis-value">
+                                {assetVar95HoldingValue !== null
+                                  ? formatCurrency(assetVar95HoldingValue, assetCurrency)
+                                  : '—'}
+                              </span>
+                              <span className="analysis-meta">
+                                ES{' '}
+                                {assetCvar95HoldingValue !== null
+                                  ? formatCurrency(assetCvar95HoldingValue, assetCurrency)
+                                  : '—'}
+                              </span>
+                            </article>
+                          </div>
+                        ) : null}
+
+                        <div className="analysis-meta-row">
+                          {assetPathCount ? (
+                            <span>{assetPathCount.toLocaleString()} simulated paths</span>
+                          ) : null}
+                          {assetSimulationState.runAt ? (
+                            <span>Last run {assetRunTimestamp}</span>
+                          ) : null}
+                        </div>
+                      </>
+                    ) : (
+                      <p>Select a holding to view its Monte Carlo simulation.</p>
+                    )}
+                  </div>
+                </div>
               ) : null}
             </section>
           ) : null}
