@@ -9,7 +9,7 @@ exports.identifier = (req,res,next) => {
             raw = req.cookies?.Authorization;
             source = 'cookie';
         }
-        console.log(`Auth source: ${source}, raw:`, raw) // debug statement
+        // console.log(`Auth source: ${source}, raw:`, raw) // debug statement
 
         if (!raw || !raw.toLowerCase().startsWith('bearer ')) {
             return res.status(401).json({
@@ -25,7 +25,7 @@ exports.identifier = (req,res,next) => {
             id: String(payload.userId),
             email: payload.email
         }
-        console.log('req.user =', req.user); // debug 
+        // console.log('req.user =', req.user); // debug 
         next();
     } catch (error) {
         return res.status(401).json({

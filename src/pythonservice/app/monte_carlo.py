@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any, Tuple
 import numpy as np
 import yfinance as yf
+from .schemas import Asset
 
 # ---- helpers ---- 
 def check_ticker(symbol):
@@ -51,33 +52,21 @@ def _validate_corr(corr: Optional[List[List[float]]], n_assets: int) -> np.ndarr
 
 # ---- simulation ---- 
 
-#example
-def price_european_call_spot_mc(
-    S0: float, K: float, T: float, r: float, sigma: float, n_paths: int = 10000, seed: int | None = None
-):
+def gbm_asset(
+        Name: str, S0: float, mu: float, sigma: float, weight: float, T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None
+) -> Tuple[str, float, float, float, float, float, float, Dict[str, Any]]:
     """
-    Black–Scholes under GBM; Monte Carlo pricing for a European call.
-    Returns (price, std_error).
+    GBM on single asset
+    Return the name, and maybe the values needed for graph
+    follow github 
     """
-    if seed is not None:
-        np.random.seed(seed)
 
-    # draw standard normals for terminal simulation
-    Z = np.random.randn(n_paths)
-    # Geometric Brownian Motion terminal price
-    ST = S0 * np.exp((r - 0.5 * sigma**2) * T + sigma * np.sqrt(T) * Z)
-    payoff = np.maximum(ST - K, 0.0)
-    disc_payoff = np.exp(-r * T) * payoff
+    # roughly what the response shouuld be
+    # return Name, FinalValue, meanFinalValue, stdFinalValue, expectedReturn, AssetVar95, AssetCvar95, params
 
-    price = disc_payoff.mean()
-    stderr = disc_payoff.std(ddof=1) / np.sqrt(n_paths)
-    return price, stderr
-
-
-# add single asset simulation, and simulate portfolio functions here
 
 def gbm_portfolio(
-    assets: List[Dict[str, Any]], weights: List[float], T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None, corr: Optional[List[List[float]]] = None
+        assets: List[Dict[str, Any]], weights: List[float], T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None, corr: Optional[List[List[float]]] = None
 ) -> Tuple[List[float], float, float, float, float, float, Dict[str, Any]]:
     """
     GBM, MonteCarlo for portfolio
@@ -109,28 +98,9 @@ def gbm_portfolio(
     sig = np.array([float(a["sigma"]) for a in assets], dtype=float)
     if np.any(S0 <= 0) or np.any(sig <= 0):
         raise ValueError("S0 and sigma must be > 0 for all assets")
-    
-    # correlation matrix stuff
-    # if corr is None:
-    #     C = np.eye(n_assets, dtype=float)
-    # else:
-    #     C = np.asarray(corr, dtype=float)
-    #     if C.shape != (n_assets, n_assets):
-    #         raise ValueError("corr must be (n_assets x n_assets)")
-    #     C = 0.5 * (C + C.T)
-    #     np.fill_diagonal(C, 1.0)
-    
-    # jitter = 0.0
-    # while True:
-    #     try:
-    #         L = np.linalg.cholesky(C + np.eye(n_assets) * jitter)
-    #         break
-    #     except np.linalg.LinAlgError:
-    #         jitter = 1e-10 if jitter == 0.0 else jitter * 10
-    #         if jitter > 1e-4:
-    #             raise ValueError("Correlation matrix not positive semidefinite")
-    C = _validate_corr(corr, n_assets)
 
+    # correleation meatrices
+    C = _validate_corr(corr, n_assets)
     L = np.linalg.cholesky(C)
 
     # --- simulationing ---

@@ -11,7 +11,8 @@ function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'C
         const s = secById.get(h.security_id);
         if (!s) continue;
 
-        const rawS0 = (h.institution_price ?? s.close_price ?? s.close_price_as_of ?? null);
+        // const rawS0 = (h.close_price ?? s.institution_price ?? null);
+        const rawS0 = (h.institution_price ?? s.close_price ?? null);
         const S0 = Number(rawS0);
         const quantity = Number(h.quantity);
 
@@ -61,17 +62,95 @@ function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'C
     };
 }
 
-
-exports.priceCallOption = async (req, res) => {
+exports.getHoldingsAndSecurities = async (req,res) => {
     try {
-        // Expect body: { S0, K, T, r, sigma, n_paths, seed }
-        const { data } = await axios.post(`${PYTHON_SERVICE}/simulate`, req.body, { timeout: 10_000 });
-        return res.json({ success: true, ...data });
-    } catch (err) {
-        console.error('python simulate error:', err.message);
-        return res.status(502).json({ success: false, message: 'AI service unavailable' });
-  }
-};
+        const existingUser = await User.findById(req.user.id).select('+plaidHoldingsEnc +plaidSecuritiesEnc').lean();
+        if (!existingUser) { 
+            return res.status(404).json({ success: false, message: "user not found" });
+        }
+
+        let plaidHoldings = decryptBlob(existingUser.plaidHoldingsEnc) || [];
+        let plaidSecurities = decryptBlob(existingUser.plaidSecuritiesEnc) || [];
+
+        let comb = combineHoldsAndSecs(plaidHoldings, plaidSecurities);
+        const T = req.body?.T ?? 1;
+        const r = req.body?.r ?? 0.04;
+        const n_steps = req.body?.n_steps ?? 252;
+        const n_paths = req.body?.n_paths ?? 10000;
+        const seed = req.body?.seed ?? null;
+
+        // console.log(comb);
+
+        let assets = comb.assets.map(a => ({
+            Name: a.name,
+            S0: Number(a.S0),
+            mu: Number(a.mu),
+            sigma: Number(a.sigma),
+        })).filter(a =>
+            Number.isFinite(a.S0) && a.S0 > 0 &&
+            Number.isFinite(a.mu) &&
+            Number.isFinite(a.sigma) && a.sigma > 0
+        );
+
+        let weights = comb.weights.slice(0, assets.length);
+        const ws = weights.reduce((s,w)=>s+w, 0);
+        if (!assets.length || weights.length !== assets.length || ws === 0) {
+            return res.status(400).json({ success:false, message:"No usable assets/weights after filtering" });
+        }
+        weights = weights.map(w => w / ws);
+
+        let finalAssets = comb.assets.map((a, index) => ({
+            Name: a.name,
+            S0: Number(a.S0),
+            mu: Number(a.mu),
+            sigma: Number(a.sigma),
+            weight: Number(weights[index]),
+            T: T,
+            r: r,
+            n_steps: n_steps,
+            n_paths: n_paths,
+            seed: seed
+
+        })).filter(a =>
+            Number.isFinite(a.S0) && a.S0 > 0 &&
+            Number.isFinite(a.mu) &&
+            Number.isFinite(a.sigma) && a.sigma > 0
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: "Assets retrieved",
+            finalAssets
+        })
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+exports.financeScore = async (req,res) => {
+    /*
+    Spending Discipline (SD) = Monthly expenses / monthly income
+        normalized:= SD=100−min(100,(expenses/income)×100)
+    Saving Rate (SR) = (Income − Expenses) / Income
+        normalized:= SR=min(100,((income−expenses)/income)×200)
+    Investment Health (IH) = Expected return − risk, diversification index
+        normalized:= IH=min(100,((E[Rp​]−rf​)/σp​)×25+50)
+    Debt Management (DM) = Debt/Income ratio, on-time payments
+        normalized:= DM=100−min(100,(debt/income)×100)
+    Liquidity (LQ) = Cash / Monthly expenses
+        normalized:= LQ=min(100,(cash/monthly_expenses)×25)
+    Risk Exposure (RE) = Portfolio σ or VaR
+        normalized:= RE=min(100,portfolio_risk_percentile)
+    FinancialScore=0.25×SD+0.20×SR+0.20×IH+0.15×DM+0.10×LQ+0.10×(100−RE)
+
+    NEED A SEPARATE FUNCTINON TO CALCULATE THE VARIABLES NEEDED
+    */ 
+    try {
+        
+    } catch (error) {
+        console.log(error);
+    }
+}
 
 exports.simAsset = async (req,res) => {
     /**
@@ -89,7 +168,20 @@ exports.simAsset = async (req,res) => {
      */
     try {
         // implement here; similar to priceCallOption
+        const asset = req.body;
 
+        // const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, asset, { timeout: 10_000 });
+    
+        return res.status(200).json({
+            success: true, 
+            message: "Asset Simulation Complete", 
+            asset
+        });
+        // return res.status(200).json({
+        //     success: true, 
+        //     message: "Asset Simulation Complete", 
+        //     data
+        // });
         // expected output
         // return res.status(200).json({
         //     success: true,
