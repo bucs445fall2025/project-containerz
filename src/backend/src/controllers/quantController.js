@@ -127,30 +127,6 @@ exports.getHoldingsAndSecurities = async (req,res) => {
     }
 }
 
-exports.financeScore = async (req,res) => {
-    /*
-    Spending Discipline (SD) = Monthly expenses / monthly income
-        normalized:= SD=100−min(100,(expenses/income)×100)
-    Saving Rate (SR) = (Income − Expenses) / Income
-        normalized:= SR=min(100,((income−expenses)/income)×200)
-    Investment Health (IH) = Expected return − risk, diversification index
-        normalized:= IH=min(100,((E[Rp​]−rf​)/σp​)×25+50)
-    Debt Management (DM) = Debt/Income ratio, on-time payments
-        normalized:= DM=100−min(100,(debt/income)×100)
-    Liquidity (LQ) = Cash / Monthly expenses
-        normalized:= LQ=min(100,(cash/monthly_expenses)×25)
-    Risk Exposure (RE) = Portfolio σ or VaR
-        normalized:= RE=min(100,portfolio_risk_percentile)
-    FinancialScore=0.25×SD+0.20×SR+0.20×IH+0.15×DM+0.10×LQ+0.10×(100−RE)
-
-    NEED A SEPARATE FUNCTINON TO CALCULATE THE VARIABLES NEEDED
-    */ 
-    try {
-        
-    } catch (error) {
-        console.log(error);
-    }
-}
 
 exports.simAsset = async (req,res) => {
     /**
