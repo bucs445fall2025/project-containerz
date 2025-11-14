@@ -820,6 +820,305 @@ a:hover {
   text-transform: capitalize;
 }
 
+.analysis-panel {
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 65%);
+}
+
+.analysis-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.analysis-kicker {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.analysis-hero-copy h2 {
+  margin: 0.2rem 0 0.4rem;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  color: #0f172a;
+}
+
+.analysis-description {
+  margin: 0;
+  color: #94a3b8;
+  max-width: 540px;
+  line-height: 1.6;
+}
+
+.analysis-primary-button {
+  border: none;
+  border-radius: 14px;
+  padding: 0.9rem 1.8rem;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  box-shadow: 0 15px 30px rgba(79, 70, 229, 0.35);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.analysis-primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 35px rgba(79, 70, 229, 0.35);
+}
+
+.analysis-primary-button:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.analysis-status {
+  margin: 0.75rem 0;
+  color: #94a3b8;
+}
+
+.analysis-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin: 1.75rem 0 1.25rem;
+}
+
+.analysis-summary-card {
+  padding: 1.25rem 1.5rem;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 140px;
+}
+
+.analysis-summary-label {
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.analysis-summary-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.analysis-summary-meta {
+  font-size: 0.95rem;
+  color: #94a3b8;
+}
+
+.analysis-meta-line {
+  margin: 0 0 2rem;
+  color: #94a3b8;
+  font-size: 0.95rem;
+}
+
+.analysis-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.analysis-section-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.analysis-section-header p {
+  margin: 0.3rem 0 0;
+  color: #94a3b8;
+  font-size: 0.95rem;
+}
+
+.analysis-assets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.analysis-asset-card {
+  padding: 1.35rem;
+  border-radius: 22px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 15px 40px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.analysis-asset-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.analysis-asset-name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.analysis-asset-link {
+  display: inline-block;
+  margin-top: 0.2rem;
+  color: #7c3aed;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.analysis-asset-source {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.analysis-asset-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.analysis-asset-meta {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.analysis-asset-button {
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(99, 102, 241, 0.1));
+  color: #312e81;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.analysis-asset-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.analysis-asset-button:not(:disabled):hover {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(99, 102, 241, 0.22));
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.2);
+}
+
+.analysis-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  z-index: 999;
+}
+
+.analysis-modal-card {
+  width: min(640px, calc(100% - 2rem));
+  background: #fff;
+  border-radius: 28px;
+  padding: 2rem;
+  box-shadow: 0 35px 80px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.analysis-modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.analysis-modal-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.analysis-modal-header h3 {
+  margin: 0.15rem 0 0;
+}
+
+.analysis-modal-close {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #475569;
+}
+
+.analysis-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.analysis-modal-card-item {
+  padding: 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: #f9fbff;
+}
+
+.analysis-modal-footer {
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.analysis-modal-footer-meta {
+  color: #cbd5f5;
+}
+
+.analysis-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.analysis-modal-dismiss {
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.analysis-modal-dismiss:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
   .auth-card {
     padding: 2rem 1.5rem;
@@ -931,5 +1230,30 @@ a:hover {
   .transaction-pagination-controls {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .analysis-hero {
+    flex-direction: column;
+  }
+
+  .analysis-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-assets-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-asset-meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .analysis-modal {
+    padding: 1rem;
+  }
+
+  .analysis-modal-grid {
+    grid-template-columns: 1fr;
   }
 }

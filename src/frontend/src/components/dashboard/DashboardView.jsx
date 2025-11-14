@@ -64,8 +64,38 @@ export default function DashboardView({
   } = investments;
   const { investmentValue: totalInvestmentValue, holdingsValue: totalHoldingsValue } = totals;
   const { summary: investmentSummaryCurrency, holdings: holdingsSummaryCurrency } = currencies;
-  const { showBreakdown, breakdown: spendingBreakdown, currency: spendingBreakdownTotalCurrency } =
-    analysis;
+  const spendingAnalysis = analysis?.spending ?? {};
+  const {
+    showBreakdown = false,
+    breakdown: spendingBreakdown = { total: 0, categories: [] },
+    currency: spendingBreakdownTotalCurrency = 'USD'
+  } = spendingAnalysis;
+  const quantAnalysis = analysis?.quant ?? {};
+  const {
+    initialized: quantInitialized = false,
+    assets: quantAssets = [],
+    assetsLoading: quantAssetsLoading = false,
+    assetsError: quantAssetsError = null,
+    hasAssets: hasQuantAssets = false,
+    onRefresh: refreshQuantAnalysis = () => {},
+    portfolio: {
+      result: portfolioResult = null,
+      loading: portfolioLoading = false,
+      error: portfolioError = null,
+      lastRunAt: portfolioLastRunAt = null,
+      params: portfolioParams = null
+    } = {},
+    assetModal: assetModalState = { isOpen: false },
+    onSimulateAsset: handleSimulateAsset = () => {},
+    onCloseAssetModal: handleCloseAssetModal = () => {}
+  } = quantAnalysis;
+  const {
+    isOpen: isAssetModalOpen = false,
+    asset: activeAsset = null,
+    loading: assetModalLoading = false,
+    error: assetModalError = null,
+    result: assetModalResult = null
+  } = assetModalState ?? {};
   const { account: accountLookup, security: securitiesLookup } = lookups;
   const {
     getInstitutionName,
@@ -85,8 +115,135 @@ export default function DashboardView({
     getTransactionBackground
   } = formatters;
 
+  const formatAbsolutePercent = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return '—';
+    }
+    const percent = Math.abs(numericValue) <= 1 ? numericValue * 100 : numericValue;
+    return `${percent.toFixed(2)}%`;
+  };
+
+  const formatReturnText = (value) => formatPercentChange(value) ?? '—';
+
+  const portfolioLastRunLabel = portfolioLastRunAt
+    ? (() => {
+        try {
+          return new Intl.DateTimeFormat('en-US', {
+            dateStyle: 'medium',
+            timeStyle: 'short'
+          }).format(new Date(portfolioLastRunAt));
+        } catch (_error) {
+          return portfolioLastRunAt;
+        }
+      })()
+    : null;
+
+  const portfolioInitialValue = Number(portfolioResult?.params?.V0);
+  const hasInitialValue = Number.isFinite(portfolioInitialValue);
+  const varValue =
+    hasInitialValue && Number.isFinite(portfolioResult?.portfolioVar95)
+      ? portfolioInitialValue * (1 + portfolioResult.portfolioVar95)
+      : null;
+  const cvarValue =
+    hasInitialValue && Number.isFinite(portfolioResult?.portfolioCvar95)
+      ? portfolioInitialValue * (1 + portfolioResult.portfolioCvar95)
+      : null;
+  const assetsModeled = quantAssets.length;
+  const normalizedPaths = Number(portfolioParams?.n_paths);
+  const normalizedSteps = Number(portfolioParams?.n_steps);
+  const formattedPaths = Number.isFinite(normalizedPaths)
+    ? normalizedPaths.toLocaleString('en-US')
+    : null;
+  const formattedSteps = Number.isFinite(normalizedSteps)
+    ? normalizedSteps.toLocaleString('en-US')
+    : null;
+  const simulationMeta =
+    formattedPaths || formattedSteps
+      ? `${formattedPaths ?? '—'} simulated paths · ${formattedSteps ?? '—'} time steps`
+      : null;
+
+  const portfolioSummaryCards = [
+    {
+      label: 'Current portfolio value',
+      value: formatCurrency(hasInitialValue ? portfolioInitialValue : null, investmentSummaryCurrency),
+      meta: portfolioLastRunLabel ? `Last run ${portfolioLastRunLabel}` : 'Awaiting simulation'
+    },
+    {
+      label: 'Projected mean value',
+      value: formatCurrency(portfolioResult?.meanFinalValue, investmentSummaryCurrency),
+      meta: `Std dev ${formatCurrency(portfolioResult?.stdFinalValue, investmentSummaryCurrency)}`
+    },
+    {
+      label: 'Expected return',
+      value: formatReturnText(portfolioResult?.expectedReturn),
+      meta: `${assetsModeled} asset${assetsModeled === 1 ? '' : 's'} modeled`
+    },
+    {
+      label: '5% VaR / CVaR',
+      value: formatCurrency(varValue, investmentSummaryCurrency),
+      meta: cvarValue ? `ES ${formatCurrency(cvarValue, investmentSummaryCurrency)}` : '—'
+    }
+  ];
+
+  const activeAssetTicker = activeAsset?.ticker || activeAsset?.symbol || null;
+  const assetModalParams = assetModalResult?.params ?? {};
+  const assetModalInitialValue = Number(assetModalParams?.initialValue);
+  const assetModalPaths = Number(assetModalParams?.n_paths);
+  const assetModalSteps = Number(assetModalParams?.n_steps);
+  const assetModalSimMeta =
+    Number.isFinite(assetModalPaths) || Number.isFinite(assetModalSteps)
+      ? `${Number.isFinite(assetModalPaths) ? assetModalPaths.toLocaleString('en-US') : '—'} simulated paths · ${
+          Number.isFinite(assetModalSteps) ? assetModalSteps : '—'
+        } time steps`
+      : null;
+  const assetVarValue =
+    Number.isFinite(assetModalResult?.AssetVar95) && Number.isFinite(assetModalInitialValue)
+      ? assetModalInitialValue * (1 + assetModalResult.AssetVar95)
+      : null;
+  const assetCvarValue =
+    Number.isFinite(assetModalResult?.AssetCvar95) && Number.isFinite(assetModalInitialValue)
+      ? assetModalInitialValue * (1 + assetModalResult.AssetCvar95)
+      : null;
+  const assetWeightText = formatAbsolutePercent(assetModalParams?.weight);
+  const assetModalCards = assetModalResult
+    ? [
+        {
+          label: 'Price today',
+          value: formatCurrency(assetModalParams?.S0, investmentSummaryCurrency),
+          meta: assetWeightText ? `Weight ${assetWeightText}` : null
+        },
+        {
+          label: 'Mean final value',
+          value: formatCurrency(assetModalResult.meanFinalValue, investmentSummaryCurrency),
+          meta: `Std dev ${formatCurrency(assetModalResult.stdFinalValue, investmentSummaryCurrency)}`
+        },
+        {
+          label: 'Expected return',
+          value: formatReturnText(assetModalResult.expectedReturn),
+          meta: portfolioLastRunLabel ? `Last run ${portfolioLastRunLabel}` : null
+        },
+        {
+          label: '5% VaR / CVaR',
+          value: formatCurrency(assetVarValue, investmentSummaryCurrency),
+          meta: assetCvarValue ? `ES ${formatCurrency(assetCvarValue, investmentSummaryCurrency)}` : '—'
+        },
+        {
+          label: 'Position value',
+          value: formatCurrency(assetModalInitialValue, investmentSummaryCurrency),
+          meta: activeAsset?.Name ?? null
+        },
+        {
+          label: 'Median final value',
+          value: formatCurrency(assetModalResult.FinalValue, investmentSummaryCurrency),
+          meta: 'Median of terminal distribution'
+        }
+      ]
+    : [];
+
   return (
-    <div className="dashboard">
+    <>
+      <div className="dashboard">
       <header className="dashboard-header">
         <div>
           <h1>Hello, {user?.name ?? 'there'}!</h1>
@@ -776,8 +933,187 @@ export default function DashboardView({
               ) : null}
             </section>
           ) : null}
+
+          {active === 'analysis' ? (
+            <section
+              id="dashboard-panel-analysis"
+              role="tabpanel"
+              aria-labelledby="dashboard-tab-analysis"
+              className="dashboard-panel analysis-panel"
+            >
+              <div className="analysis-hero">
+                <div className="analysis-hero-copy">
+                  <p className="analysis-kicker">Monte Carlo analysis</p>
+                  <h2>Project potential outcomes for your portfolio and individual holdings.</h2>
+                  <p className="analysis-description">
+                    Use a GBM Monte Carlo simulation to understand potential terminal values, volatility,
+                    and tail risk for the assets in your connected accounts.
+                  </p>
+                </div>
+                <button
+                  className="analysis-primary-button"
+                  type="button"
+                  onClick={refreshQuantAnalysis}
+                  disabled={portfolioLoading || quantAssetsLoading}
+                >
+                  {portfolioLoading || quantAssetsLoading ? 'Running simulation…' : 'Re-run portfolio simulation'}
+                </button>
+              </div>
+
+              {portfolioLoading ? (
+                <p className="analysis-status">Running Monte Carlo simulation on your current portfolio…</p>
+              ) : null}
+
+              {portfolioError ? <p className="dashboard-error">{portfolioError}</p> : null}
+              {quantAssetsError ? <p className="dashboard-error">{quantAssetsError}</p> : null}
+
+              <div className="analysis-summary" aria-live="polite">
+                {portfolioSummaryCards.map((card) => (
+                  <article className="analysis-summary-card" key={card.label}>
+                    <span className="analysis-summary-label">{card.label}</span>
+                    <span className="analysis-summary-value">{card.value}</span>
+                    {card.meta ? <span className="analysis-summary-meta">{card.meta}</span> : null}
+                  </article>
+                ))}
+              </div>
+
+              {simulationMeta ? <p className="analysis-meta-line">{simulationMeta}</p> : null}
+
+              <div className="analysis-section-header">
+                <div>
+                  <h3>Asset stress tests</h3>
+                  <p>Select a holding to run a dedicated Monte Carlo simulation.</p>
+                </div>
+              </div>
+
+              {quantAssetsLoading && !hasQuantAssets ? (
+                <p className="analysis-status">Loading holdings for per-asset analysis…</p>
+              ) : null}
+
+              {hasQuantAssets ? (
+                <div className="analysis-assets-grid">
+                  {quantAssets.map((asset, index) => {
+                    const weightText = formatAbsolutePercent(asset.weight);
+                    const driftText = formatAbsolutePercent(asset.mu);
+                    const volText = formatAbsolutePercent(asset.sigma);
+                    const ticker = asset.ticker || asset.symbol || '';
+                    const assetKey = asset.security_id || asset.id || `${asset.Name}-${index}`;
+                    const isAssetBusy =
+                      assetModalLoading && activeAsset?.Name === asset.Name && isAssetModalOpen;
+
+                    return (
+                      <article className="analysis-asset-card" key={assetKey}>
+                        <div className="analysis-asset-top">
+                          <div>
+                            <p className="analysis-asset-name">{asset.Name}</p>
+                            {ticker ? <span className="analysis-asset-link">{ticker}</span> : null}
+                            <p className="analysis-asset-source">Plaid holding</p>
+                          </div>
+                          <div className="analysis-asset-value">
+                            {formatCurrency(asset.S0, investmentSummaryCurrency)}
+                          </div>
+                        </div>
+                        <div className="analysis-asset-meta">
+                          <span>Weight {weightText}</span>
+                          <span>μ {driftText}</span>
+                          <span>σ {volText}</span>
+                        </div>
+                        <button
+                          className="analysis-asset-button"
+                          type="button"
+                          onClick={() => handleSimulateAsset(asset)}
+                          disabled={isAssetBusy}
+                        >
+                          {isAssetBusy ? 'Simulating…' : 'Run Monte Carlo'}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : !quantAssetsLoading && quantInitialized ? (
+                <p className="analysis-status">
+                  {hasInvestmentHoldings
+                    ? 'We could not derive asset weights to analyze yet.'
+                    : 'Connect an investment account to see per-asset analytics.'}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
         </div>
       </section>
     </div>
+      {isAssetModalOpen ? (
+        <div
+          className="analysis-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Monte Carlo analysis for ${activeAsset?.Name ?? 'asset'}`}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              handleCloseAssetModal();
+            }
+          }}
+        >
+          <div className="analysis-modal-card">
+            <header className="analysis-modal-header">
+              <div>
+                <p className="analysis-modal-subtitle">{activeAssetTicker ?? 'Monte Carlo'}</p>
+                <h3>{activeAsset?.Name ?? 'Asset'}</h3>
+              </div>
+              <button
+                type="button"
+                className="analysis-modal-close"
+                onClick={handleCloseAssetModal}
+                aria-label="Close analysis dialog"
+              >
+                Close
+              </button>
+            </header>
+            {assetModalLoading ? (
+              <p>Running simulation…</p>
+            ) : assetModalError ? (
+              <p className="dashboard-error">{assetModalError}</p>
+            ) : assetModalResult ? (
+              <div className="analysis-modal-grid">
+                {assetModalCards.map((card) => (
+                  <article className="analysis-modal-card-item" key={card.label}>
+                    <span className="analysis-summary-label">{card.label}</span>
+                    <span className="analysis-summary-value">{card.value}</span>
+                    {card.meta ? <span className="analysis-summary-meta">{card.meta}</span> : null}
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p>No simulation data yet.</p>
+            )}
+            {assetModalSimMeta ? (
+              <div className="analysis-modal-footer">
+                {assetModalSimMeta}
+                {portfolioLastRunLabel ? (
+                  <span className="analysis-modal-footer-meta"> · Last run {portfolioLastRunLabel}</span>
+                ) : null}
+              </div>
+            ) : null}
+            <div className="analysis-modal-actions">
+              <button
+                className="auth-button"
+                type="button"
+                onClick={() => handleSimulateAsset(activeAsset)}
+                disabled={assetModalLoading}
+              >
+                {assetModalLoading ? 'Simulating…' : 'Rerun simulation'}
+              </button>
+              <button
+                className="analysis-modal-dismiss"
+                type="button"
+                onClick={handleCloseAssetModal}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

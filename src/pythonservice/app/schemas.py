@@ -5,6 +5,7 @@ class Asset(BaseModel):
     S0: float
     mu: float
     sigma: float
+    quantity: Optional[float] = None
 
 class MCRequestAsset(BaseModel):
     Name: str
@@ -39,6 +40,7 @@ class MCRequestPortfolio(BaseModel):
     seed: Optional[int] = None
     return_paths: bool = False
     corr: Optional[List[List[float]]] = None
+    initial_value: Optional[float] = None
 
 class MCResponsePortfolio(BaseModel):
     portfolioFinalValues: Optional[List[float]] = None

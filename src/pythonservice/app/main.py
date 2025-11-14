@@ -26,7 +26,7 @@ def simulateAsset(req: MCRequestAsset):
     )
     return MCResponseAsset(
         Name=req.Name,
-        portfolioFinalValue=FinalValue,
+        FinalValue=FinalValue,
         meanFinalValue=meanFinalValue,
         stdFinalValue=stdFinalValue,
         expectedReturn=expectedReturn,
@@ -44,7 +44,9 @@ def simulatePortfolio(req: MCRequestPortfolio):
         r=req.r,
         n_steps=req.n_steps, 
         n_paths=req.n_paths, 
-        seed=req.seed
+        seed=req.seed,
+        corr=req.corr,
+        initial_value=req.initial_value
     )
     return MCResponsePortfolio(
         portfolioFinalValues=portfolioFinalValues if req.return_paths else None,

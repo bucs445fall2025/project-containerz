@@ -9,7 +9,7 @@ import {
   fetchTransactions,
   setAccessToken
 } from '../api/plaid.js';
-import { sendVerificationCode, verifyVerificationCode } from '../api/auth.js';
+import { request, sendVerificationCode, verifyVerificationCode } from '../api/auth.js';
 
 const DASHBOARD_TABS = [
   { key: 'balances', label: 'Account Balances' },
@@ -19,6 +19,26 @@ const DASHBOARD_TABS = [
 ];
 
 const TRANSACTIONS_PER_PAGE = 10;
+
+async function fetchQuantAssetsApi(token) {
+  return request('/quant/holdingsAndSecurities', { token });
+}
+
+async function runAssetSimulationApi(token, body) {
+  return request('/quant/mc/asset', {
+    method: 'POST',
+    token,
+    body
+  });
+}
+
+async function runPortfolioSimulationApi(token, body = {}) {
+  return request('/quant/mc/portfolio', {
+    method: 'POST',
+    token,
+    body
+  });
+}
 
 export function useDashboard() {
   const { user, token, logout, refreshUser } = useAuth();
@@ -48,6 +68,22 @@ export function useDashboard() {
   const [hasRequestedCode, setHasRequestedCode] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(DASHBOARD_TABS[0].key);
+  const [quantAssets, setQuantAssets] = useState([]);
+  const [quantAssetsLoading, setQuantAssetsLoading] = useState(false);
+  const [quantAssetsError, setQuantAssetsError] = useState(null);
+  const [portfolioSimulationResult, setPortfolioSimulationResult] = useState(null);
+  const [portfolioSimulationLoading, setPortfolioSimulationLoading] = useState(false);
+  const [portfolioSimulationError, setPortfolioSimulationError] = useState(null);
+  const [portfolioSimulationLastRun, setPortfolioSimulationLastRun] = useState(null);
+  const [portfolioSimulationParams, setPortfolioSimulationParams] = useState(null);
+  const [analysisInitialized, setAnalysisInitialized] = useState(false);
+  const [assetModalState, setAssetModalState] = useState({
+    isOpen: false,
+    asset: null,
+    loading: false,
+    error: null,
+    result: null
+  });
 
   const tabDefinitions = useMemo(
     () =>
@@ -225,6 +261,53 @@ export function useDashboard() {
     }
   }, [token]);
 
+  const loadQuantAssets = useCallback(async () => {
+    if (!token) {
+      setQuantAssets([]);
+      return;
+    }
+    setQuantAssetsLoading(true);
+    setQuantAssetsError(null);
+    try {
+      const response = await fetchQuantAssetsApi(token);
+      const assets = Array.isArray(response?.finalAssets) ? response.finalAssets : [];
+      setQuantAssets(assets);
+    } catch (quantAssetsError) {
+      console.error('Unable to load quant assets', quantAssetsError);
+      setQuantAssets([]);
+      setQuantAssetsError(quantAssetsError.message ?? 'Unable to load assets for analysis');
+    } finally {
+      setQuantAssetsLoading(false);
+    }
+  }, [token]);
+
+  const runPortfolioAnalysis = useCallback(async () => {
+    if (!token) {
+      setPortfolioSimulationResult(null);
+      setPortfolioSimulationParams(null);
+      setPortfolioSimulationLastRun(null);
+      return;
+    }
+    setPortfolioSimulationLoading(true);
+    setPortfolioSimulationError(null);
+    try {
+      const response = await runPortfolioSimulationApi(token);
+      setPortfolioSimulationResult(response?.data ?? null);
+      setPortfolioSimulationParams(response?.params ?? null);
+      setPortfolioSimulationLastRun(new Date().toISOString());
+    } catch (portfolioError) {
+      console.error('Unable to simulate portfolio', portfolioError);
+      setPortfolioSimulationError(portfolioError.message ?? 'Unable to simulate portfolio');
+    } finally {
+      setPortfolioSimulationLoading(false);
+    }
+  }, [token]);
+
+  const refreshQuantAnalysis = useCallback(async () => {
+    await loadQuantAssets();
+    await runPortfolioAnalysis();
+  }, [loadQuantAssets, runPortfolioAnalysis]);
+
   const loadTransactions = useCallback(async () => {
     if (!token) {
       return;
@@ -243,6 +326,49 @@ export function useDashboard() {
       setTransactionsLoading(false);
     }
   }, [token]);
+
+  const handleCloseAssetModal = useCallback(() => {
+    setAssetModalState({
+      isOpen: false,
+      asset: null,
+      loading: false,
+      error: null,
+      result: null
+    });
+  }, []);
+
+  const handleSimulateAsset = useCallback(
+    async (asset) => {
+      if (!token || !asset) {
+        return;
+      }
+      setAssetModalState({
+        isOpen: true,
+        asset,
+        loading: true,
+        error: null,
+        result: null
+      });
+      try {
+        const response = await runAssetSimulationApi(token, asset);
+        setAssetModalState({
+          isOpen: true,
+          asset,
+          loading: false,
+          error: null,
+          result: response?.data ?? null
+        });
+      } catch (assetError) {
+        console.error('Unable to simulate asset', assetError);
+        setAssetModalState((prev) => ({
+          ...prev,
+          loading: false,
+          error: assetError.message ?? 'Unable to simulate asset'
+        }));
+      }
+    },
+    [token]
+  );
 
   useEffect(() => {
     loadAccounts();
@@ -287,6 +413,25 @@ export function useDashboard() {
       cancelled = true;
     };
   }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setAnalysisInitialized(false);
+      setQuantAssets([]);
+      setPortfolioSimulationResult(null);
+      setPortfolioSimulationParams(null);
+      setPortfolioSimulationLastRun(null);
+      return;
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (activeTab !== 'analysis' || !token) {
+      return;
+    }
+    setAnalysisInitialized(true);
+    refreshQuantAnalysis();
+  }, [activeTab, refreshQuantAnalysis, token]);
 
   const plaidConfig = useMemo(
     () => ({
@@ -706,9 +851,29 @@ export function useDashboard() {
       onRefresh: loadInvestments
     },
     analysis: {
-      showBreakdown: showSpendingBreakdown,
-      breakdown: spendingBreakdown,
-      currency: spendingBreakdownTotalCurrency
+      spending: {
+        showBreakdown: showSpendingBreakdown,
+        breakdown: spendingBreakdown,
+        currency: spendingBreakdownTotalCurrency
+      },
+      quant: {
+        initialized: analysisInitialized,
+        assets: quantAssets,
+        assetsLoading: quantAssetsLoading,
+        assetsError: quantAssetsError,
+        hasAssets: quantAssets.length > 0,
+        onRefresh: refreshQuantAnalysis,
+        portfolio: {
+          result: portfolioSimulationResult,
+          loading: portfolioSimulationLoading,
+          error: portfolioSimulationError,
+          lastRunAt: portfolioSimulationLastRun,
+          params: portfolioSimulationParams
+        },
+        assetModal: assetModalState,
+        onSimulateAsset: handleSimulateAsset,
+        onCloseAssetModal: handleCloseAssetModal
+      }
     },
     lookups: {
       account: accountLookup,
