@@ -62,6 +62,10 @@ function combineHoldsAndSecs(holds, secs, { includeCash = false, cashTicker = 'C
     };
 }
 
+exports.financeScore = async (_req, res) => {
+    return res.status(501).json({ success: false, message: 'Finance score endpoint not implemented' });
+};
+
 exports.getHoldingsAndSecurities = async (req,res) => {
     try {
         const existingUser = await User.findById(req.user.id).select('+plaidHoldingsEnc +plaidSecuritiesEnc').lean();
@@ -143,36 +147,23 @@ exports.simAsset = async (req,res) => {
      *  this is all for fake data using plaid
      */
     try {
-        // implement here; similar to priceCallOption
-        const asset = req.body;
+        const asset = req.body ?? {};
+        if (!asset?.Name || !Number.isFinite(Number(asset?.S0))) {
+            return res.status(400).json({ success: false, message: 'Asset payload is incomplete' });
+        }
 
-        // const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, asset, { timeout: 10_000 });
+        const { data } = await axios.post(`${PYTHON_SERVICE}/sim/asset`, asset, { timeout: 10_000 });
     
         return res.status(200).json({
             success: true, 
             message: "Asset Simulation Complete", 
-            asset
+            data
         });
-        // return res.status(200).json({
-        //     success: true, 
-        //     message: "Asset Simulation Complete", 
-        //     data
-        // });
-        // expected output
-        // return res.status(200).json({
-        //     success: true,
-        //     message: "Asset Simulation Complete",
-        //     data: {
-        //         finalPrices: [], // ending price of each simulated path
-        //         meanFinalPrices: float, // average of all final prices
-        //         stdFinalPrice: float, // volatility of all simulation outcomes
-        //         expectedReturn: float, // (meanFinalPrice - S0)/S0
-        //         params: { S0, mu, sigma, T, r, n_steps, n_paths } // echo back what was used for outcomes (mainly for debug)
-        //     }
-        // });
     } catch (error) {
-        console.error('AI simulate error:', error.message);
-        return res.status(502).json({ success: false, message: 'AI service unavailable' });
+        const status = error.response?.status || 502;
+        const detail = error.response?.data || error.message;
+        console.error('Python asset simulate error:', status, JSON.stringify(detail, null, 2));
+        return res.status(status).json({ success: false, message: 'Python service error', detail });
     }
 }
 
@@ -193,11 +184,15 @@ exports.simPortfolio = async (req,res) => {
         const n_paths = req.body?.n_paths ?? 10000;
         const seed = req.body?.seed ?? null;
 
-        let assets = comb.assets.map(a => ({
-            S0: Number(a.S0),
-            mu: Number(a.mu),
-            sigma: Number(a.sigma),
-        })).filter(a =>
+        let assets = comb.assets.map(a => {
+            const quantity = Number(a.quantity);
+            return {
+                S0: Number(a.S0),
+                mu: Number(a.mu),
+                sigma: Number(a.sigma),
+                quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : null
+            };
+        }).filter(a =>
             Number.isFinite(a.S0) && a.S0 > 0 &&
             Number.isFinite(a.mu) &&
             Number.isFinite(a.sigma) && a.sigma > 0
@@ -215,7 +210,8 @@ exports.simPortfolio = async (req,res) => {
             T, r,
             n_steps, n_paths,
             seed, return_paths: false,
-            corr: null
+            corr: null,
+            initial_value: comb.initialValue
         }
 
         const { data } = await axios.post(`${PYTHON_SERVICE}/sim/portfolio`, payload, { timeout: 10_000 });

@@ -16,8 +16,18 @@ app.use(helmet());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+const allowedOrigins = new Set([
+	'http://localhost:5173',
+	'http://localhost:8080'
+]);
+
 app.use(cors({
-  	origin: 'http://localhost:5173',
+	origin(origin, callback) {
+		if (!origin || allowedOrigins.has(origin)) {
+			return callback(null, origin);
+		}
+		return callback(new Error('Not allowed by CORS'));
+	},
 	credentials: true, 
 }));
 

@@ -10,7 +10,7 @@ import {
   fetchTransactions,
   setAccessToken
 } from '../../api/plaid.js';
-import { sendVerificationCode, verifyVerificationCode } from '../../api/auth.js';
+import { request, sendVerificationCode, verifyVerificationCode } from '../../api/auth.js';
 
 jest.mock('../../context/AuthContext.jsx', () => ({
   __esModule: true,
@@ -38,6 +38,7 @@ jest.mock('../../api/plaid.js', () => ({
 }));
 
 jest.mock('../../api/auth.js', () => ({
+  request: jest.fn(),
   sendVerificationCode: jest.fn(),
   verifyVerificationCode: jest.fn()
 }));
@@ -69,6 +70,18 @@ describe('useDashboard', () => {
     setAccessToken.mockResolvedValue(undefined);
     sendVerificationCode.mockResolvedValue(undefined);
     verifyVerificationCode.mockResolvedValue(undefined);
+    request.mockImplementation((path) => {
+      if (path === '/quant/holdingsAndSecurities') {
+        return Promise.resolve({ finalAssets: [] });
+      }
+      if (path === '/quant/mc/portfolio') {
+        return Promise.resolve({ data: null, params: null });
+      }
+      if (path === '/quant/mc/asset') {
+        return Promise.resolve({ data: null });
+      }
+      return Promise.resolve({});
+    });
 
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(noop);
     consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(noop);
@@ -194,5 +207,47 @@ describe('useDashboard', () => {
     expect(result.current.investments.displayedTransactions).toHaveLength(10);
     expect(result.current.investments.displayedTransactions[0]).toEqual(investmentTransactions[0]);
     expect(result.current.investments.displayedTransactions[9]).toEqual(investmentTransactions[9]);
+  });
+
+  it('loads quant assets and runs portfolio simulations when the analysis tab opens', async () => {
+    const finalAssets = [
+      { Name: 'Tech ETF', S0: 100, mu: 0.1, sigma: 0.2, weight: 0.6, T: 1, r: 0.04 }
+    ];
+    request.mockImplementation((path) => {
+      if (path === '/quant/holdingsAndSecurities') {
+        return Promise.resolve({ finalAssets });
+      }
+      if (path === '/quant/mc/portfolio') {
+        return Promise.resolve({
+          data: {
+            meanFinalValue: 125,
+            stdFinalValue: 18,
+            expectedReturn: 0.12,
+            portfolioVar95: -0.08,
+            portfolioCvar95: -0.15
+          },
+          params: { n_paths: 1000 }
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    const { result } = renderHook(() => useDashboard());
+
+    await act(async () => {
+      result.current.tabs.onSelect('analysis');
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith('/quant/holdingsAndSecurities', { token: 'token-123' });
+      expect(
+        request
+      ).toHaveBeenCalledWith('/quant/mc/portfolio', expect.objectContaining({ token: 'token-123' }));
+    });
+
+    expect(result.current.analysis.quant.assets).toEqual(finalAssets);
+    expect(result.current.analysis.quant.portfolio.result.meanFinalValue).toBe(125);
+    expect(result.current.analysis.quant.portfolio.result.expectedReturn).toBe(0.12);
   });
 });

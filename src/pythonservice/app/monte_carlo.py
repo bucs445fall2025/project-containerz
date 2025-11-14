@@ -53,20 +53,83 @@ def _validate_corr(corr: Optional[List[List[float]]], n_assets: int) -> np.ndarr
 # ---- simulation ---- 
 
 def gbm_asset(
-        Name: str, S0: float, mu: float, sigma: float, weight: float, T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None
-) -> Tuple[str, float, float, float, float, float, float, Dict[str, Any]]:
+        Name: str,
+        S0: float,
+        mu: float,
+        sigma: float,
+        weight: float,
+        T: float,
+        r: float,
+        n_steps: int = 252,
+        n_paths: int = 10_000,
+        seed: Optional[int] = None
+) -> Tuple[float, float, float, float, float, float, Dict[str, Any]]:
     """
-    GBM on single asset
-    Return the name, and maybe the values needed for graph
-    follow github 
+    Run a GBM Monte Carlo simulation for a single asset/position.
+    Returns summary statistics that mirror the portfolio simulation payload.
     """
 
-    # roughly what the response shouuld be
-    # return Name, FinalValue, meanFinalValue, stdFinalValue, expectedReturn, AssetVar95, AssetCvar95, params
+    if S0 <= 0 or sigma <= 0:
+        raise ValueError("S0 and sigma must be > 0")
+    if n_steps < 1:
+        raise ValueError("n_steps must be >= 1")
+    if n_paths < 2:
+        raise ValueError("n_paths must be >= 2")
+
+    w = float(weight) if weight is not None else 1.0
+    if not np.isfinite(w) or w <= 0:
+        w = 1.0
+
+    dt = float(T) / float(n_steps)
+    rng = np.random.default_rng(seed)
+    Z = rng.standard_normal(size=(n_paths, n_steps))
+
+    drift = (mu - 0.5 * sigma**2) * dt
+    diff = sigma * np.sqrt(dt)
+    increments = drift + diff * Z
+
+    log_ST = np.log(S0) + increments.cumsum(axis=1)
+    ST = np.exp(log_ST[:, -1])
+
+    initial_value = w * S0
+    final_values = w * ST
+
+    median_final = float(np.median(final_values))
+    mean_final = float(final_values.mean())
+    std_final = float(final_values.std(ddof=1)) if n_paths > 1 else 0.0
+
+    returns = (final_values / initial_value) - 1.0
+    exp_ret = float(returns.mean())
+    var95 = float(np.quantile(returns, 0.05))
+    tail = returns[returns <= var95]
+    cvar95 = float(tail.mean()) if tail.size else var95
+
+    params = {
+        "name": Name,
+        "S0": float(S0),
+        "mu": float(mu),
+        "sigma": float(sigma),
+        "weight": float(weight) if weight is not None else float(w),
+        "r": float(r),
+        "initialValue": float(initial_value),
+        "dt": dt,
+        "n_steps": int(n_steps),
+        "n_paths": int(n_paths)
+    }
+
+    return median_final, mean_final, std_final, exp_ret, var95, cvar95, params
 
 
 def gbm_portfolio(
-        assets: List[Dict[str, Any]], weights: List[float], T: float, r: float, n_steps: int = 252, n_paths: int = 10_000, seed: Optional[int] = None, corr: Optional[List[List[float]]] = None
+        assets: List[Dict[str, Any]],
+        weights: List[float],
+        T: float,
+        r: float,
+        n_steps: int = 252,
+        n_paths: int = 10_000,
+        seed: Optional[int] = None,
+        corr: Optional[List[List[float]]] = None,
+        initial_value: Optional[float] = None
 ) -> Tuple[List[float], float, float, float, float, float, Dict[str, Any]]:
     """
     GBM, MonteCarlo for portfolio
@@ -99,6 +162,26 @@ def gbm_portfolio(
     if np.any(S0 <= 0) or np.any(sig <= 0):
         raise ValueError("S0 and sigma must be > 0 for all assets")
 
+    parsed_quantities = []
+    for a in assets:
+        if not isinstance(a, dict):
+            parsed_quantities.append(np.nan)
+            continue
+        raw_q = a.get("quantity", np.nan)
+        try:
+            q_val = float(raw_q)
+        except (TypeError, ValueError):
+            q_val = np.nan
+        parsed_quantities.append(q_val)
+    quantities = np.array(parsed_quantities, dtype=float)
+    if np.any(~np.isfinite(quantities) | (quantities <= 0)):
+        base_value = float(initial_value) if initial_value and initial_value > 0 else 1.0
+        quantities = (w * base_value) / S0
+
+    V0 = float(np.sum(quantities * S0))
+    if V0 <= 0:
+        raise ValueError("initial portfolio value must be > 0")
+
     # correleation meatrices
     C = _validate_corr(corr, n_assets)
     L = np.linalg.cholesky(C)
@@ -117,8 +200,7 @@ def gbm_portfolio(
     log_ST = np.log(S0)[None, None, :] + inc.cumsum(axis=1)
     ST = np.exp(log_ST[:, -1, :])
 
-    V0 = float(np.sum(w * S0))
-    VT = np.sum(w[None, :] * ST, axis=1)
+    VT = np.sum(quantities[None, :] * ST, axis=1)
 
     finals = VT.tolist()
     mean_val = float(VT.mean())
@@ -136,7 +218,10 @@ def gbm_portfolio(
         "V0": V0,
         "dt": dt,
         "mu": mu.tolist(),
-        "sigma": sig.tolist()
+        "sigma": sig.tolist(),
+        "weights": w.tolist(),
+        "quantities": quantities.tolist(),
+        "initial_value_arg": float(initial_value) if initial_value is not None else None
     }
 
     return finals, mean_val, std_val, exp_ret, var95, cvar95, params
