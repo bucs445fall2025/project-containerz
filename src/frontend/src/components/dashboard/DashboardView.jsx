@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 export default function DashboardView({
   user,
   isVerified,
@@ -13,6 +15,55 @@ export default function DashboardView({
   formatters
 }) {
   const { active, definitions, onSelect, onKeyDown } = tabs;
+  const [isMobileTabs, setIsMobileTabs] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return false;
+    }
+    return window.matchMedia('(max-width: 640px)').matches;
+  });
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+    const mediaQuery = window.matchMedia('(max-width: 640px)');
+    const handleChange = (event) => setIsMobileTabs(event.matches);
+    handleChange(mediaQuery);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+  useEffect(() => {
+    if (!isMobileTabs) {
+      setIsMobileNavOpen(false);
+    }
+  }, [isMobileTabs]);
+  const handleToggleMobileTabs = () => {
+    setIsMobileNavOpen((open) => !open);
+  };
+  const handleSelectTab = (tabKey) => {
+    onSelect(tabKey);
+    if (isMobileTabs) {
+      setIsMobileNavOpen(false);
+    }
+  };
+  const activeTabDefinition = definitions.find((tab) => tab.key === active);
+  const activeTabLabel = activeTabDefinition?.label ?? 'Dashboard';
+  const tabsMenuId = 'dashboard-tabs-menu';
+  const isMobileMenuOpen = isMobileTabs && isMobileNavOpen;
+  const tabsClassName = ['dashboard-tabs', isMobileTabs ? 'is-mobile' : '', isMobileMenuOpen ? 'is-open' : '']
+    .filter(Boolean)
+    .join(' ');
+  const tabsContainerClassName = [
+    'dashboard-tabs-container',
+    isMobileTabs ? 'is-mobile' : '',
+    isMobileMenuOpen ? 'is-open' : ''
+  ]
+    .filter(Boolean)
+    .join(' ');
   const {
     isOpen: verificationOpen,
     status: verificationStatus,
@@ -339,27 +390,55 @@ export default function DashboardView({
       )}
 
       <section className="dashboard-body">
-        <nav className="dashboard-tabs" aria-label="Dashboard sections" role="tablist">
-          {definitions.map((tab) => {
-            const isActive = active === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                id={tab.buttonId}
-                aria-selected={isActive}
-                aria-controls={tab.panelId}
-                className={`dashboard-tab${isActive ? ' is-active' : ''}`}
-                onClick={() => onSelect(tab.key)}
-                onKeyDown={onKeyDown}
-                tabIndex={isActive ? 0 : -1}
-              >
-                <span className="dashboard-tab-label">{tab.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <div className={tabsContainerClassName}>
+          {isMobileTabs ? (
+            <button
+              type="button"
+              className="dashboard-tabs-toggle"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls={tabsMenuId}
+              onClick={handleToggleMobileTabs}
+            >
+              <span className="dashboard-tabs-toggle-text">
+                <span className="dashboard-tabs-toggle-title">Dashboard sections</span>
+                <span className="dashboard-tabs-toggle-active">{activeTabLabel}</span>
+              </span>
+              <span className="dashboard-tabs-toggle-icon" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            </button>
+          ) : null}
+
+          <nav
+            id={tabsMenuId}
+            className={tabsClassName}
+            aria-label="Dashboard sections"
+            role="tablist"
+            aria-hidden={isMobileTabs && !isMobileNavOpen}
+          >
+            {definitions.map((tab) => {
+              const isActive = active === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  id={tab.buttonId}
+                  aria-selected={isActive}
+                  aria-controls={tab.panelId}
+                  className={`dashboard-tab${isActive ? ' is-active' : ''}`}
+                  onClick={() => handleSelectTab(tab.key)}
+                  onKeyDown={onKeyDown}
+                  tabIndex={isActive ? 0 : -1}
+                >
+                  <span className="dashboard-tab-label">{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
 
         <div className="dashboard-tab-content">
           {active === 'balances' ? (
