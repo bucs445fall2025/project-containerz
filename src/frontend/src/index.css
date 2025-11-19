@@ -333,6 +333,9 @@ a:hover {
 }
 
 .dashboard-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: #475569;
@@ -363,6 +366,95 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.dashboard-tabs-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.dashboard-tabs-toggle {
+  display: none;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+  justify-content: space-between;
+  align-items: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.dashboard-tabs-toggle:hover {
+  border-color: rgba(79, 70, 229, 0.5);
+  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.15);
+}
+
+.dashboard-tabs-container.is-open .dashboard-tabs-toggle {
+  border-color: rgba(79, 70, 229, 0.5);
+  box-shadow: 0 18px 36px rgba(79, 70, 229, 0.18);
+}
+
+.dashboard-tabs-toggle:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.dashboard-tabs-toggle-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+}
+
+.dashboard-tabs-toggle-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.dashboard-tabs-toggle-active {
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.dashboard-tabs-toggle-icon {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 1rem;
+  width: 1.5rem;
+}
+
+.dashboard-tabs-toggle-icon span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: #0f172a;
+  border-radius: 999px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.dashboard-tabs-container.is-open .dashboard-tabs-toggle-icon span:nth-child(1) {
+  transform: translateY(4px) rotate(45deg);
+}
+
+.dashboard-tabs-container.is-open .dashboard-tabs-toggle-icon span:nth-child(2) {
+  opacity: 0;
+}
+
+.dashboard-tabs-container.is-open .dashboard-tabs-toggle-icon span:nth-child(3) {
+  transform: translateY(-4px) rotate(-45deg);
 }
 
 .dashboard-tab-content {
@@ -413,6 +505,10 @@ a:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+.dashboard-actions .auth-button {
+  min-width: 180px;
 }
 
 .dashboard-error {
@@ -577,6 +673,7 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  min-width: 0;
 }
 
 @media (min-width: 960px) {
@@ -622,6 +719,7 @@ a:hover {
   gap: 0.5rem 1rem;
   font-size: 0.95rem;
   color: #64748b;
+  min-width: 0;
 }
 
 .transaction-meta-item {
@@ -707,7 +805,7 @@ a:hover {
 
 .account-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1.5rem;
 }
 
@@ -722,6 +820,8 @@ a:hover {
   flex-direction: column;
   gap: 1.25rem;
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
 }
 
 .account-card::after {
@@ -738,9 +838,11 @@ a:hover {
 .account-card-header {
   display: flex;
   gap: 1rem;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   position: relative;
   z-index: 1;
+  min-width: 0;
 }
 
 .account-logo {
@@ -766,11 +868,19 @@ a:hover {
   color: #1d4ed8;
 }
 
+.account-card-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .account-card-titles h3 {
   margin: 0;
   font-size: 1.15rem;
   font-weight: 600;
   color: #0f172a;
+  word-break: break-word;
 }
 
 .account-card-titles p {
@@ -781,7 +891,7 @@ a:hover {
 
 .account-card-body {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 1.25rem;
   position: relative;
   z-index: 1;
@@ -820,6 +930,43 @@ a:hover {
   text-transform: capitalize;
 }
 
+.investment-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border-radius: 20px;
+  background: rgba(248, 250, 252, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.07);
+}
+
+.investment-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.investment-section-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.investment-section-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .analysis-panel {
   background: linear-gradient(180deg, #f8fbff 0%, #ffffff 65%);
 }
@@ -854,6 +1001,10 @@ a:hover {
 }
 
 .analysis-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   border: none;
   border-radius: 14px;
   padding: 0.9rem 1.8rem;
@@ -1120,12 +1271,21 @@ a:hover {
 }
 
 @media (max-width: 640px) {
+  .auth-wrapper {
+    padding: 1.5rem 1rem;
+  }
+
   .auth-card {
     padding: 2rem 1.5rem;
   }
 
   .dashboard {
     padding: 2rem 1.5rem;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .dashboard-body {
@@ -1154,16 +1314,48 @@ a:hover {
     padding: 1.25rem;
   }
 
+  .dashboard-tabs-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .dashboard-tabs-toggle {
+    display: flex;
+    background: #f8fafc;
+  }
+
   .dashboard-tabs {
     width: 100%;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.5rem;
+  }
+
+  .dashboard-tabs.is-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+    padding: 0.5rem;
+    border-radius: 20px;
+    background: rgba(148, 163, 184, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+  }
+
+  .dashboard-tabs.is-mobile:not(.is-open) {
+    display: none;
   }
 
   .dashboard-tab {
-    flex: 1 1 calc(33.333% - 0.5rem);
-    padding: 0.6rem 0.75rem;
+    width: 100%;
+    justify-content: flex-start;
+    padding: 0.9rem 0.75rem;
+  }
+
+  .dashboard-actions {
+    flex-direction: column;
+  }
+
+  .dashboard-actions .auth-button {
+    width: 100%;
   }
 
   .dashboard-placeholder {
@@ -1172,6 +1364,7 @@ a:hover {
 
   .account-grid {
     gap: 1.25rem;
+    grid-template-columns: 1fr;
   }
 
   .account-card {
@@ -1181,6 +1374,16 @@ a:hover {
   .account-card-body {
     grid-template-columns: 1fr;
     gap: 1rem;
+  }
+
+  .transaction-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .transaction-meta-item:not(:first-child)::before {
+    display: none;
   }
 
   .transaction-item {
@@ -1236,6 +1439,26 @@ a:hover {
     flex-direction: column;
   }
 
+  .analysis-primary-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .investment-section {
+    padding: 1.25rem;
+  }
+
+  .investment-section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .investment-section-total {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .analysis-summary {
     grid-template-columns: 1fr;
   }
@@ -1251,6 +1474,12 @@ a:hover {
 
   .analysis-modal {
     padding: 1rem;
+  }
+
+  .analysis-modal-card {
+    padding: 1.5rem;
+    max-height: calc(100vh - 1rem);
+    overflow-y: auto;
   }
 
   .analysis-modal-grid {
