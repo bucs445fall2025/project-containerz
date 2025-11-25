@@ -1,0 +1,57 @@
+    How will you use this application?
+
+	- To access financial statements and current balances from all accounts in one place. User will be able to use the built in AI model to 
+	  analyze their finances to better guide their financial journey. 
+
+    Where would the user be located physically when using this application?
+
+	- The user can be located anywhere as long as they have an internet connection and a phone or laptop
+
+    Where would the results be visible?
+
+	- The results would be accesible through either the web application or the mobile applicaiton
+
+    When will this application be used?
+
+	- When a user wants to better handle their finances and keep track of everything in one place
+
+    When can the application fail? 
+
+	- If plaid is down, or they have a data breach then the application may fail. The AI model has the potential to fail as well.
+    
+	Who is my user?
+
+	- Anyone who wants to better manage their finances without the need of a financial planner
+
+    Who will deliver the inputs for the application?
+
+	- Plaid
+
+    Who will receive the outputs of the application?
+
+	- The user
+
+    What do I know about this application?
+
+	- The tech stack for this application allows for easy conversion to a mobile app
+
+    What does this application need to do?
+
+	- Retrieve user fincanical data and display back to the user, while also giving the user the option to use a AI model to better manage
+	  their finances
+
+    What are the components of this application?
+
+	- Five containers - frontend, api, db, server, ml model
+    
+	What needs to happen next?
+
+	- Design the architecture
+    
+	What must happen before the next step?
+
+	- The tech stack and architecture needs to be confirmed
+    
+	What needs to be tracked?
+
+	- Progess 

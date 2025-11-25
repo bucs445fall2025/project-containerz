@@ -1,0 +1,68 @@
+services:
+  pythonservice:
+    build: ./pythonservice
+    container_name: fin-pythonservice
+    hostname: pythonservice
+    ports:
+      - "8001:8001"   # not required in prod
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost',8001)); print('ok')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      finnet:
+        aliases: [pythonservice]
+    restart: unless-stopped
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      MONGODB_URI: mongodb://mongo:27017/fin_tool
+      PORT: "3000" 
+      TOKEN_SECRET: dev-secret-key
+      PYTHON_URL: http://pythonservice:8001
+    ports:
+      - "8081:3000"        
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+    networks: [finnet]
+    depends_on:
+      - pythonservice
+
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    container_name: fin-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: http://localhost:8080/api
+    ports:
+      - "5173:5173"        
+    depends_on:
+      - backend
+    networks: [finnet]
+
+  nginx:
+    build: ./nginx
+    container_name: fin-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"         
+    depends_on:
+      - backend
+      - frontend
+    networks: [finnet]
+
+volumes:
+  backend_node_modules:
+
+networks:
+  finnet:
